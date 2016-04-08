@@ -213,3 +213,10 @@ class Decimal(FieldType):
 
     def from_json(self, value):
         return decimal.Decimal(value) if value is not None else None
+
+class Enum(String):
+    def __init__(self, values):
+        self.values = values
+
+    def get_type_name(self):
+        return 'enum(%s)' % ', '.join(self.values)

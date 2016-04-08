@@ -1,4 +1,5 @@
 import datetime
+import decimal
 import unittest
 
 from dateutil import tz
@@ -244,6 +245,10 @@ class ModelWithDates(apilib.Model):
     fdate = apilib.Field(apilib.Date())
     fdatetime = apilib.Field(apilib.DateTime())
 
+class ModelWithDateList(apilib.Model):
+    ldate = apilib.ListField(apilib.Date())
+    ldatetime = apilib.ListField(apilib.DateTime())
+
 class DateFieldTest(unittest.TestCase):
     def test_empties(self):
         m = ModelWithDates()
@@ -322,6 +327,63 @@ class DateFieldTest(unittest.TestCase):
         self.assertEqual(datetime.date(2016, 2, 18), m.fdate)
         self.assertEqual(datetime.datetime(2012, 4, 12, 10, 8, 23, tzinfo=tz.gettz('America/Los_Angeles')), m.fdatetime)
 
+    def test_serialize_lists(self):
+        m = ModelWithDateList(
+            ldate=[datetime.date(2016, 3, 10), datetime.date(2016, 4, 15)],
+            ldatetime=[datetime.datetime(2010, 1, 12, 10, 8, 23, tzinfo=tz.gettz('America/Los_Angeles')),
+                datetime.datetime(2013, 2, 12, 14, 29, 0, tzinfo=tz.gettz('America/New_York'))])
+        self.assertEqual(
+            {'ldatetime': [u'2010-01-12T10:08:23-08:00', u'2013-02-12T14:29:00-05:00'], 'ldate': [u'2016-03-10', u'2016-04-15']},
+            m.to_json())
+
+    def test_deserialize_lists(self):
+        m = ModelWithDateList.from_json({
+            'ldatetime': [u'2010-01-12T10:08:23-08:00', u'2013-02-12T14:29:00-05:00'],
+            'ldate': [u'2016-03-10', u'2016-04-15'],
+            })
+        self.assertEqual([datetime.date(2016, 3, 10), datetime.date(2016, 4, 15)], m.ldate)
+        self.assertEqual(
+            [datetime.datetime(2010, 1, 12, 10, 8, 23, tzinfo=tz.gettz('America/Los_Angeles')),
+                datetime.datetime(2013, 2, 12, 14, 29, 0, tzinfo=tz.gettz('America/New_York'))],
+            m.ldatetime)
+
+class ModelWithExtendedFields(apilib.Model):
+    ldecimal = apilib.Field(apilib.Decimal())
+    lenum = apilib.Field(apilib.Enum(['Jerry', 'George']))
+
+class ExtendedFieldsTest(unittest.TestCase):
+    def test_empties(self):
+        m = ModelWithExtendedFields()
+        self.assertIsNone(m.ldecimal)
+        self.assertIsNone(m.lenum)
+
+        m = ModelWithExtendedFields(ldecimal=None, lenum=None)
+        self.assertIsNone(m.ldecimal)
+        self.assertIsNone(m.lenum)
+
+        m = ModelWithExtendedFields()
+        self.assertEqual({}, m.to_json())
+
+        m = ModelWithExtendedFields(ldecimal=None, lenum=None)
+        self.assertEqual({'ldecimal': None, 'lenum': None}, m.to_json())
+
+        m = ModelWithExtendedFields.from_json({})
+        self.assertIsNone(m.ldecimal)
+        self.assertIsNone(m.lenum)
+
+        m = ModelWithExtendedFields.from_json({'ldecimal': None, 'lenum': None})
+        self.assertIsNone(m.ldecimal)
+        self.assertIsNone(m.lenum)
+
+    def test_serialize(self):
+        m = ModelWithExtendedFields(ldecimal=decimal.Decimal('0.1'), lenum='Jerry')
+        self.assertEqual({'ldecimal': u'0.1', 'lenum': u'Jerry'}, m.to_json())
+
+    def test_deserialize(self):
+        m = ModelWithExtendedFields.from_json({'ldecimal': u'0.1', 'lenum': u'Jerry'})
+        self.assertEqual(decimal.Decimal, type(m.ldecimal))
+        self.assertEqual(decimal.Decimal('0.1'), m.ldecimal)
+        self.assertEqual('Jerry', m.lenum)
 
 if __name__ == '__main__':
     unittest.main()
