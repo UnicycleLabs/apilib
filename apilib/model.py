@@ -1,4 +1,5 @@
 import datetime
+import decimal
 import inspect
 import json
 
@@ -165,6 +166,21 @@ class Boolean(FieldType):
     def from_json(self, value):
         return bool(value) if value is not None else None
 
+class ModelFieldType(FieldType):
+    json_type = 'object'
+
+    def __init__(self, model_class):
+        self.model_class = model_class
+
+    def to_json(self, value):
+        return value.to_json() if value is not None else None
+
+    def from_json(self, value):
+        return self.model_class.from_json(value) if value is not None else None
+
+    def get_type_name(self):
+        return 'object(%s)' % self.model_class.__name__
+
 class DateTime(FieldType):
     type_name = 'datetime'
     json_type = 'string'
@@ -185,19 +201,15 @@ class Date(FieldType):
         return unicode(value.isoformat()) if value is not None else None
 
     def from_json(self, value):
-        return datetime.datetime.strptime('2016-01-05', '%Y-%m-%d').date() if value else None
+        return datetime.datetime.strptime(value, '%Y-%m-%d').date() if value else None
 
-class ModelFieldType(FieldType):
-    json_type = 'object'
-
-    def __init__(self, model_class):
-        self.model_class = model_class
+class Decimal(FieldType):
+    type_name = 'decimal'
+    json_type = 'string'
+    description = 'A fixed-point decimal number'
 
     def to_json(self, value):
-        return value.to_json() if value is not None else None
+        return unicode(value) if value is not None else None
 
     def from_json(self, value):
-        return self.model_class.from_json(value) if value is not None else None
-
-    def get_type_name(self):
-        return 'object(%s)' % self.model_class.__name__
+        return decimal.Decimal(value) if value is not None else None

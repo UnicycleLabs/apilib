@@ -1,4 +1,7 @@
+import datetime
 import unittest
+
+from dateutil import tz
 
 import apilib
 
@@ -186,15 +189,15 @@ class BasicNestedModelTest(unittest.TestCase):
         m = BasicParentModel(lchild=[])
         self.assertEqual({'lchild': []}, m.to_json())
 
-        m = BasicParentModel.from_json({})        
+        m = BasicParentModel.from_json({})
         self.assertIsNone(m.fchild)
         self.assertIsNone(m.lchild)
 
-        m = BasicParentModel.from_json({'lchild': [], 'fchild': None})        
+        m = BasicParentModel.from_json({'lchild': [], 'fchild': None})
         self.assertIsNone(m.fchild)
         self.assertEqual([], m.lchild)
 
-        m = BasicParentModel.from_json({'lchild': None, 'fchild': None})        
+        m = BasicParentModel.from_json({'lchild': None, 'fchild': None})
         self.assertIsNone(m.fchild)
         self.assertIsNone(m.lchild)
 
@@ -236,6 +239,89 @@ class BasicNestedModelTest(unittest.TestCase):
         self.assertEqual(2, len(m.lchild))
         self.assertEqual('b', m.lchild[0].fstring)
         self.assertEqual('c', m.lchild[1].fstring)
+
+class ModelWithDates(apilib.Model):
+    fdate = apilib.Field(apilib.Date())
+    fdatetime = apilib.Field(apilib.DateTime())
+
+class DateFieldTest(unittest.TestCase):
+    def test_empties(self):
+        m = ModelWithDates()
+        self.assertIsNone(m.fdate)
+        self.assertIsNone(m.fdatetime)
+
+        m = ModelWithDates(fdate=None, fdatetime=None)
+        self.assertIsNone(m.fdate)
+        self.assertIsNone(m.fdatetime)
+
+        m = ModelWithDates()
+        self.assertEqual({}, m.to_json())
+
+        m = ModelWithDates(fdate=None, fdatetime=None)
+        self.assertEqual({'fdate': None, 'fdatetime': None}, m.to_json())
+
+        m = ModelWithDates.from_json({})
+        self.assertIsNone(m.fdate)
+        self.assertIsNone(m.fdatetime)
+
+        m = ModelWithDates.from_json({'fdate': None, 'fdatetime': None})
+        self.assertIsNone(m.fdate)
+        self.assertIsNone(m.fdatetime)
+
+    def test_instantiate(self):
+        m = ModelWithDates(
+            fdate=datetime.date(2016, 2, 18),
+            fdatetime=datetime.datetime(2012, 4, 12, 10, 8, 23, tzinfo=tz.tzutc()))
+        self.assertEqual(datetime.date(2016, 2, 18), m.fdate)
+        self.assertEqual(datetime.datetime(2012, 4, 12, 10, 8, 23, tzinfo=tz.tzutc()), m.fdatetime)
+
+        m = ModelWithDates(
+            fdate=datetime.date(2034, 5, 10),
+            fdatetime=datetime.datetime(2050, 8, 18))
+        self.assertEqual(datetime.date(2034, 5, 10), m.fdate)
+        self.assertEqual(datetime.datetime(2050, 8, 18), m.fdatetime)
+
+        m = ModelWithDates(
+            fdate=datetime.date(2016, 2, 18),
+            fdatetime=datetime.datetime(2012, 4, 12, 10, 8, 23, tzinfo=tz.gettz('America/Los_Angeles')))
+        self.assertEqual(datetime.date(2016, 2, 18), m.fdate)
+        self.assertEqual(datetime.datetime(2012, 4, 12, 10, 8, 23, tzinfo=tz.gettz('America/Los_Angeles')), m.fdatetime)
+
+    def test_serialize(self):
+        m = ModelWithDates(
+            fdate=datetime.date(2016, 2, 18),
+            fdatetime=datetime.datetime(2012, 4, 12, 10, 8, 23, tzinfo=tz.tzutc()))
+        self.assertEqual(
+            {'fdatetime': u'2012-04-12T10:08:23+00:00', 'fdate': u'2016-02-18'},
+            m.to_json())
+
+        m = ModelWithDates(
+            fdate=datetime.date(2034, 5, 10),
+            fdatetime=datetime.datetime(2050, 8, 18))
+        self.assertEqual(
+            {'fdatetime': u'2050-08-18T00:00:00', 'fdate': u'2034-05-10'},
+            m.to_json())
+
+        m = ModelWithDates(
+            fdate=datetime.date(2016, 2, 18),
+            fdatetime=datetime.datetime(2012, 4, 12, 10, 8, 23, tzinfo=tz.gettz('America/Los_Angeles')))
+        self.assertEqual(
+            {'fdatetime': u'2012-04-12T10:08:23-07:00', 'fdate': u'2016-02-18'},
+            m.to_json())
+
+    def test_deserialize(self):
+        m = ModelWithDates.from_json({'fdatetime': u'2012-04-12T10:08:23+00:00', 'fdate': u'2016-02-18'})
+        self.assertEqual(datetime.date(2016, 2, 18), m.fdate)
+        self.assertEqual(datetime.datetime(2012, 4, 12, 10, 8, 23, tzinfo=tz.tzutc()), m.fdatetime)
+
+        m = ModelWithDates.from_json({'fdatetime': u'2050-08-18T00:00:00', 'fdate': u'2034-05-10'})
+        self.assertEqual(datetime.date(2034, 5, 10), m.fdate)
+        self.assertEqual(datetime.datetime(2050, 8, 18), m.fdatetime)
+
+        m = ModelWithDates.from_json({'fdatetime': u'2012-04-12T10:08:23-07:00', 'fdate': u'2016-02-18'})
+        self.assertEqual(datetime.date(2016, 2, 18), m.fdate)
+        self.assertEqual(datetime.datetime(2012, 4, 12, 10, 8, 23, tzinfo=tz.gettz('America/Los_Angeles')), m.fdatetime)
+
 
 if __name__ == '__main__':
     unittest.main()
