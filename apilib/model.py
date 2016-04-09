@@ -48,6 +48,17 @@ class Model(object):
                     cls._field_name_to_field[attr_name] = attr
                     attr._name = attr_name
 
+    def __str__(self):
+        return self.to_string()
+
+    def to_string(self, indent=''):
+        parts = ['<%s: {' % type(self).__name__]
+        for key in sorted(self._data.iterkeys()):
+            formatted_value = self._field_name_to_field[key].to_string(self._data[key], indent)
+            parts.append('  %s%s: %s,' % (indent, key, formatted_value))
+        parts.append('%s}>' % indent)
+        return '\n'.join(parts)
+
 class Field(object):
     def __init__(self, field_type):
         self._type = field_type
@@ -68,6 +79,9 @@ class Field(object):
 
     def __set__(self, instance, value):
         instance._data[self._name] = value
+
+    def to_string(self, value, indent):
+        return self._type.to_string(value, indent)
 
 class ListField(Field):
     def __init__(self, field_type_or_model_class):
@@ -90,6 +104,13 @@ class ListField(Field):
     def __set__(self, instance, value):
         instance._data[self._name] = list(value) if value is not None else None
 
+    def to_string(self, value, indent):
+        if value is None:
+            return unicode(None)
+        new_indent = indent + '  '
+        parts = ['['] + [new_indent + self._type.to_string(item, new_indent) for item in value] + [new_indent + ']']
+        return '\n'.join(parts)
+
 class ModelField(Field):
     def __init__(self, field_type_or_model_class):
         if inspect.isclass(field_type_or_model_class) and issubclass(field_type_or_model_class, Model):
@@ -103,6 +124,11 @@ class ModelField(Field):
 
     def from_json(self, value):
         return self._type.from_json(value) if value is not None else None
+
+    def to_string(self, value, indent):
+        if value is None:
+            return unicode(value)
+        return value.to_string(indent + '  ')
 
 class FieldType(object):
     type_name = None
@@ -126,6 +152,9 @@ class FieldType(object):
     def get_description(self):
         return self.description
 
+    def to_string(self, value, indent):
+        return unicode(value)
+
 class String(FieldType):
     type_name = 'string'
     json_type = 'string'
@@ -135,6 +164,9 @@ class String(FieldType):
 
     def from_json(self, value):
         return unicode(value) if value is not None else None
+
+    def to_string(self, value, indent):
+        return (u"'%s'" % value.replace("'", "\\'")) if value is not None else unicode(None)
 
 class Integer(FieldType):
     type_name = 'integer'
@@ -181,6 +213,9 @@ class ModelFieldType(FieldType):
     def get_type_name(self):
         return 'object(%s)' % self.model_class.__name__
 
+    def to_string(self, value, indent):
+        return value.to_string(indent + '  ') if value is not None else unicode(None)
+
 class DateTime(FieldType):
     type_name = 'datetime'
     json_type = 'string'
@@ -220,3 +255,6 @@ class Enum(String):
 
     def get_type_name(self):
         return 'enum(%s)' % ', '.join(self.values)
+
+    def to_string(self, value, indent):
+        return unicode(value)

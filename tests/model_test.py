@@ -385,5 +385,130 @@ class ExtendedFieldsTest(unittest.TestCase):
         self.assertEqual(decimal.Decimal('0.1'), m.ldecimal)
         self.assertEqual('Jerry', m.lenum)
 
+class NGrandchild(apilib.Model):
+    fint = apilib.Field(apilib.Integer())
+    lfloat = apilib.ListField(apilib.Float())
+
+class NChild(apilib.Model):
+    fgrandchild = apilib.ModelField(NGrandchild)
+    lgrandchild = apilib.ListField(NGrandchild)
+    fstring = apilib.Field(apilib.String())
+
+class NParent(apilib.Model):
+    fchild = apilib.ModelField(NChild)
+    lchild = apilib.ListField(NChild)
+
+class MultipleNestingTest(unittest.TestCase):
+    def test_serialize(self):
+        m = NParent(
+            fchild=NChild(
+                fgrandchild=NGrandchild(fint=1, lfloat=[2.0, 3.0]),
+                lgrandchild=[NGrandchild(fint=4, lfloat=[5.0])],
+                fstring='abc'),
+            lchild=[NChild(
+                fgrandchild=NGrandchild(fint=6, lfloat=[7.0]),
+                lgrandchild=[NGrandchild(fint=8, lfloat=[9.0])],
+                fstring='def')])
+        self.assertDictEqual(
+            {'fchild': {'fgrandchild': {'fint': 1, 'lfloat': [2.0, 3.0]},
+                        'fstring': u'abc',
+                        'lgrandchild': [{'fint': 4, 'lfloat': [5.0]}]},
+             'lchild': [{'fgrandchild': {'fint': 6, 'lfloat': [7.0]},
+                         'fstring': u'def',
+                         'lgrandchild': [{'fint': 8, 'lfloat': [9.0]}]}]},
+            m.to_json())
+
+    def test_deserialize(self):
+        m = NParent.from_json(
+             {'fchild': {'fgrandchild': {'fint': 1, 'lfloat': [2.0, 3.0]},
+                        'fstring': u'abc',
+                        'lgrandchild': [{'fint': 4, 'lfloat': [5.0]}]},
+             'lchild': [{'fgrandchild': {'fint': 6, 'lfloat': [7.0]},
+                         'fstring': u'def',
+                         'lgrandchild': [{'fint': 8, 'lfloat': [9.0]}]}]})
+        self.assertIsNotNone(m.fchild)
+        self.assertIsNotNone(m.lchild)
+
+        self.assertEqual(1, m.fchild.fgrandchild.fint)
+        self.assertEqual([2.0, 3.0], m.fchild.fgrandchild.lfloat)
+        self.assertEqual(1, len(m.fchild.lgrandchild))
+        self.assertEqual(4, m.fchild.lgrandchild[0].fint)
+        self.assertEqual([5.0], m.fchild.lgrandchild[0].lfloat)
+        self.assertEqual('abc', m.fchild.fstring)
+
+        self.assertEqual(1, len(m.lchild))
+        self.assertEqual(6, m.lchild[0].fgrandchild.fint)
+        self.assertEqual([7.0], m.lchild[0].fgrandchild.lfloat)
+        self.assertEqual(1, len(m.lchild[0].lgrandchild))
+        self.assertEqual(8, m.lchild[0].lgrandchild[0].fint)
+        self.assertEqual([9.0], m.lchild[0].lgrandchild[0].lfloat)
+        self.assertEqual('def', m.lchild[0].fstring)
+
+class ToStringModel(apilib.Model):
+    fstring = apilib.Field(apilib.String())
+    fint = apilib.Field(apilib.Integer())
+    ffloat = apilib.Field(apilib.Float())
+    fbool = apilib.Field(apilib.Boolean())
+    fdate = apilib.Field(apilib.Date())
+    fdatetime = apilib.Field(apilib.DateTime())
+    fdecimal = apilib.Field(apilib.Decimal())
+    fenum = apilib.Field(apilib.Enum(['JERRY', 'GEORGE']))
+    fchild = apilib.ModelField(BasicScalarModel)
+    lchild = apilib.ListField(BasicScalarModel)
+
+class ToStringTest(unittest.TestCase):
+    def test_foo(self):
+        m = ToStringModel(
+            fstring='hello\'world',
+            fint=123,
+            ffloat=0.1,
+            fbool=False,
+            fdate=datetime.date(2016, 2, 18),
+            fdatetime=datetime.datetime(2012, 4, 12, 10, 8, 23, tzinfo=tz.tzutc()),
+            fdecimal=decimal.Decimal('0.1'),
+            fenum='JERRY',
+            fchild=BasicScalarModel(
+                fstring=None,
+                ffloat=None),
+            lchild=[
+                BasicScalarModel(
+                    fstring='345',
+                    fint=-543,
+                    ffloat=-0.0002,
+                    fbool=True),
+                BasicScalarModel(
+                    fbool=None),
+                BasicScalarModel(),
+            ])
+        expected = '''
+<ToStringModel: {
+  fbool: False,
+  fchild: <BasicScalarModel: {
+    ffloat: None,
+    fstring: None,
+  }>,
+  fdate: 2016-02-18,
+  fdatetime: 2012-04-12 10:08:23+00:00,
+  fdecimal: 0.1,
+  fenum: JERRY,
+  ffloat: 0.1,
+  fint: 123,
+  fstring: 'hello\\'world',
+  lchild: [
+  <BasicScalarModel: {
+      fbool: True,
+      ffloat: -0.0002,
+      fint: -543,
+      fstring: '345',
+    }>
+  <BasicScalarModel: {
+      fbool: None,
+    }>
+  <BasicScalarModel: {
+    }>
+  ],
+}>'''[1:]
+        self.assertEqual(expected, str(m))
+
 if __name__ == '__main__':
     unittest.main()
