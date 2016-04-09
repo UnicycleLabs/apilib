@@ -6,6 +6,8 @@ from dateutil import tz
 
 import apilib
 
+apilib.model.ID_ENCRYPTION_KEY = 'test'
+
 class BasicScalarModel(apilib.Model):
     fstring = apilib.Field(apilib.String())
     fint = apilib.Field(apilib.Integer())
@@ -348,42 +350,47 @@ class DateFieldTest(unittest.TestCase):
             m.ldatetime)
 
 class ModelWithExtendedFields(apilib.Model):
-    ldecimal = apilib.Field(apilib.Decimal())
-    lenum = apilib.Field(apilib.Enum(['Jerry', 'George']))
+    fdecimal = apilib.Field(apilib.Decimal())
+    fenum = apilib.Field(apilib.Enum(['Jerry', 'George']))
+    fid = apilib.Field(apilib.EncryptedId())
 
 class ExtendedFieldsTest(unittest.TestCase):
     def test_empties(self):
         m = ModelWithExtendedFields()
-        self.assertIsNone(m.ldecimal)
-        self.assertIsNone(m.lenum)
+        self.assertIsNone(m.fdecimal)
+        self.assertIsNone(m.fenum)
 
-        m = ModelWithExtendedFields(ldecimal=None, lenum=None)
-        self.assertIsNone(m.ldecimal)
-        self.assertIsNone(m.lenum)
+        m = ModelWithExtendedFields(fdecimal=None, fenum=None, fid=None)
+        self.assertIsNone(m.fdecimal)
+        self.assertIsNone(m.fenum)
+        self.assertIsNone(m.fid)
 
         m = ModelWithExtendedFields()
         self.assertEqual({}, m.to_json())
 
-        m = ModelWithExtendedFields(ldecimal=None, lenum=None)
-        self.assertEqual({'ldecimal': None, 'lenum': None}, m.to_json())
+        m = ModelWithExtendedFields(fdecimal=None, fenum=None, fid=None)
+        self.assertEqual({'fdecimal': None, 'fenum': None, 'fid': None}, m.to_json())
 
         m = ModelWithExtendedFields.from_json({})
-        self.assertIsNone(m.ldecimal)
-        self.assertIsNone(m.lenum)
+        self.assertIsNone(m.fdecimal)
+        self.assertIsNone(m.fenum)
+        self.assertIsNone(m.fid)
 
-        m = ModelWithExtendedFields.from_json({'ldecimal': None, 'lenum': None})
-        self.assertIsNone(m.ldecimal)
-        self.assertIsNone(m.lenum)
+        m = ModelWithExtendedFields.from_json({'fdecimal': None, 'fenum': None, 'fid': None})
+        self.assertIsNone(m.fdecimal)
+        self.assertIsNone(m.fenum)
+        self.assertIsNone(m.fid)
 
     def test_serialize(self):
-        m = ModelWithExtendedFields(ldecimal=decimal.Decimal('0.1'), lenum='Jerry')
-        self.assertEqual({'ldecimal': u'0.1', 'lenum': u'Jerry'}, m.to_json())
+        m = ModelWithExtendedFields(fdecimal=decimal.Decimal('0.1'), fenum='Jerry', fid=123)
+        self.assertEqual({'fdecimal': u'0.1', 'fenum': u'Jerry', 'fid': 'PYW33gW8'}, m.to_json())
 
     def test_deserialize(self):
-        m = ModelWithExtendedFields.from_json({'ldecimal': u'0.1', 'lenum': u'Jerry'})
-        self.assertEqual(decimal.Decimal, type(m.ldecimal))
-        self.assertEqual(decimal.Decimal('0.1'), m.ldecimal)
-        self.assertEqual('Jerry', m.lenum)
+        m = ModelWithExtendedFields.from_json({'fdecimal': u'0.1', 'fenum': u'Jerry', 'fid': 'PYW33gW8'})
+        self.assertEqual(decimal.Decimal, type(m.fdecimal))
+        self.assertEqual(decimal.Decimal('0.1'), m.fdecimal)
+        self.assertEqual('Jerry', m.fenum)
+        self.assertEqual(123, m.fid)
 
 class NGrandchild(apilib.Model):
     fint = apilib.Field(apilib.Integer())

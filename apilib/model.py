@@ -5,7 +5,27 @@ import json
 
 from dateutil import parser as dateutil_parser
 
+try:
+    import hashids
+except ImportError:
+    hashids = None
+
+ID_ENCRYPTION_KEY = None  # Set this to encrypt ids
+ID_HASHER = None
+
+def _create_id_hasher():
+    global ID_HASHER
+    if not ID_ENCRYPTION_KEY:
+        raise ConfigurationRequired('You must set apilib.ID_ENCRYPTION_KEY prior to using EncryptedId fields')
+    ID_HASHER = hashids.Hashids(salt=ID_ENCRYPTION_KEY, min_length=8)
+
 class UnknownFieldException(Exception):
+    pass
+
+class ModuleRequired(Exception):
+    pass
+
+class ConfigurationRequired(Exception):
     pass
 
 class Model(object):
@@ -258,3 +278,25 @@ class Enum(String):
 
     def to_string(self, value, indent):
         return unicode(value)
+
+class EncryptedId(FieldType):
+    type_name = 'id'
+    json_type = 'string'
+    description = 'An entity id'
+
+    def __init__(self):
+        if not hashids:
+            raise ModuleRequired('You must install the hashids module in order to use EncryptedId fields')
+        if not ID_HASHER:
+            _create_id_hasher()
+
+    def to_json(self, value):
+        return ID_HASHER.encode(value) if value is not None else None
+
+    def from_json(self, value):
+        if value is None:
+            return None
+        # Unclear why this doesn't work with unicode values,
+        # must coerce it to be a string.
+        ids = ID_HASHER.decode(str(value))
+        return ids[0] if ids else None
