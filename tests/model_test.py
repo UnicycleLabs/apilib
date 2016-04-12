@@ -148,6 +148,91 @@ class ScalarListsTest(unittest.TestCase):
         self.assertIsNone(m.lbool)
 
 
+class ScalarDictModel(apilib.Model):
+    dstring = apilib.Field(apilib.DictType(apilib.String()))
+    dint = apilib.Field(apilib.DictType(apilib.Integer()))
+    dfloat = apilib.Field(apilib.DictType(apilib.Float()))
+    dbool = apilib.Field(apilib.DictType(apilib.Boolean()))
+
+class ScalarDictTest(unittest.TestCase):
+    def test_instantiate_empties(self):
+        m = ScalarDictModel()
+        self.assertIsNone(m.dstring)
+        self.assertIsNone(m.dint)
+        self.assertIsNone(m.dfloat)
+        self.assertIsNone(m.dbool)
+
+    def test_serialize_empties(self):
+        self.assertEqual({}, ScalarDictModel().to_json())
+
+    def test_deserialize_empties(self):
+        m = ScalarDictModel.from_json({})
+        self.assertIsNone(m.dstring)
+        self.assertIsNone(m.dint)
+        self.assertIsNone(m.dfloat)
+        self.assertIsNone(m.dbool)
+
+        m = ScalarDictModel.from_json({'dstring': None, 'dint': None, 'dfloat': None, 'dbool': None})
+        self.assertIsNone(m.dstring)
+        self.assertIsNone(m.dint)
+        self.assertIsNone(m.dfloat)
+        self.assertIsNone(m.dbool)
+
+        m = ScalarDictModel.from_json({'dstring': {}, 'dint': {}, 'dfloat': {}, 'dbool': {}})
+        self.assertEqual({}, m.dstring)
+        self.assertEqual({}, m.dint)
+        self.assertEqual({}, m.dfloat)
+        self.assertEqual({}, m.dbool)
+
+    def test_instantiate(self):
+        m = ScalarDictModel(dstring={'a': '1', 'b': '2'}, dint={'w': 1}, dfloat={'x': 2.0, 'y': 3.0}, dbool={'j': False, 'k': True, 'l': False})
+        self.assertEqual({'a': '1', 'b': '2'}, m.dstring)
+        self.assertEqual({'w': 1}, m.dint)
+        self.assertEqual({'x': 2.0, 'y': 3.0}, m.dfloat)
+        self.assertEqual({'j': False, 'k': True, 'l': False}, m.dbool)
+
+        m = ScalarDictModel(dstring={'a': None}, dint={'b': None}, dfloat={'c': None}, dbool={'d': None})
+        self.assertEqual({'a': None}, m.dstring)
+        self.assertEqual({'b': None}, m.dint)
+        self.assertEqual({'c': None}, m.dfloat)
+        self.assertEqual({'d': None}, m.dbool)
+
+    def test_serialize(self):
+        m = ScalarDictModel(dstring={'a': '1', 'b': '2'}, dint={'w': 1}, dfloat={'x': 2.0, 'y': 3.0}, dbool={'j': False, 'k': True, 'l': False})
+        self.assertEqual(
+            {'dstring': {'a': u'1', 'b': u'2'}, 'dbool': {'k': True, 'j': False, 'l': False}, 'dint': {'w': 1}, 'dfloat': {'y': 3.0, 'x': 2.0}},
+            m.to_json())
+
+        m = ScalarDictModel(dstring={'a': None}, dint={'b': None}, dfloat={'c': None}, dbool={'d': None})
+        self.assertEqual(
+            {'dstring': {'a': None}, 'dbool': {'d': None}, 'dint': {'b': None}, 'dfloat': {'c': None}},
+            m.to_json())
+
+        m = ScalarDictModel(dint={'a': None})
+        self.assertEqual(
+            {'dint': {'a': None}},
+            m.to_json())
+
+    def test_deserialize(self):
+        m = ScalarDictModel.from_json({'dstring': {'a': u'1', 'b': u'2'}, 'dbool': {'k': True, 'j': False, 'l': False}, 'dint': {'w': 1}, 'dfloat': {'y': 3.0, 'x': 2.0}})
+        self.assertEqual({'a': '1', 'b': '2'}, m.dstring)
+        self.assertEqual({'w': 1}, m.dint)
+        self.assertEqual({'x': 2.0, 'y': 3.0}, m.dfloat)
+        self.assertEqual({'j': False, 'k': True, 'l': False}, m.dbool)
+
+        m = ScalarDictModel.from_json({'dstring': {'a': None}, 'dbool': {'d': None}, 'dint': {'b': None}, 'dfloat': {'c': None}})
+        self.assertEqual({'a': None}, m.dstring)
+        self.assertEqual({'b': None}, m.dint)
+        self.assertEqual({'c': None}, m.dfloat)
+        self.assertEqual({'d': None}, m.dbool)
+
+        m = ScalarDictModel.from_json( {'dint': {'a': None}})
+        self.assertIsNone(m.dstring)
+        self.assertEqual({'a': None}, m.dint)
+        self.assertIsNone(m.dfloat)
+        self.assertIsNone(m.dbool)
+
+
 class BasicChildModel(apilib.Model):
     fstring = apilib.Field(apilib.String())
 

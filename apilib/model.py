@@ -274,6 +274,38 @@ class ListType(FieldType):
         parts = ['['] + ['%s%s,' % (new_indent, self._type.to_string(item, new_indent)) for item in value] + [new_indent + ']']
         return '\n'.join(parts)
 
+class DictType(FieldType):
+    json_type = 'object'
+
+    def __init__(self, field_type_or_model_class):
+        if inspect.isclass(field_type_or_model_class) and issubclass(field_type_or_model_class, Model):
+            self._type = ModelType(field_type_or_model_class)
+        else:
+            self._type = field_type_or_model_class
+
+    def to_json(self, value):
+        if value is None:
+            return None
+        return {k: self._type.to_json(v) for k, v in value.iteritems()}
+
+    def from_json(self, value, error_context, context=None):
+        if value is None:
+            return None
+        if not isinstance(value, dict):
+            error_context.add_error(CommonErrorCodes.INVALID_TYPE, 'Value %s is not a dict' % value)
+            return None
+        value = {k: self._type.from_json(v, error_context.extend(key=k), context) for k,v in value.iteritems()}
+        return value if not error_context.has_errors() else None
+
+    def normalize(self, value):
+        return dict(value) if value is not None else None
+
+    def get_type_name(self):
+        return 'dict(%s)' % self._type.get_type_name()
+
+    def to_string(self, value, indent):
+        pass
+
 class DateTime(FieldType):
     type_name = 'datetime'
     json_type = 'string'

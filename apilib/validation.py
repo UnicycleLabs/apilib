@@ -29,7 +29,7 @@ class ErrorContext(object):
         return self
 
     # Use exactly on keyword argument
-    def extend(self, field=None, index=None):
+    def extend(self, field=None, index=None, key=None):
         if field:
             if self.path:
                 path = '%s.%s' % (self.path, field)
@@ -37,8 +37,10 @@ class ErrorContext(object):
                 path = field
         elif index is not None:
             path = '%s[%d]' % (self.path, index)
+        elif key is not None:
+            path = '%s[%s]' % (self.path, key)
         else:
-            raise TypeError('Must specify exactly one keyword arg of either field= or index=')
+            raise TypeError('Must specify exactly one keyword arg of either field=, index=, or key=')
         ec = ErrorContext(path)
         self.children.append(ec)
         return ec
