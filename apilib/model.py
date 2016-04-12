@@ -76,10 +76,13 @@ class Model(object):
 
     @classmethod
     def _populate_fields(cls):
-        if not hasattr(cls, '_field_to_attr_name'):
+        # Check cls.__dict__ instead of calling hasattr, because we only
+        # want to check if the variable exist on the class itself
+        # and not any of its parent classes.
+        if '_field_to_attr_name' not in cls.__dict__:
             cls._field_to_attr_name = {}
             cls._field_name_to_field = {}
-            for attr_name, attr in cls.__dict__.iteritems():
+            for attr_name, attr in inspect.getmembers(cls):
                 if attr and isinstance(attr, Field):
                     cls._field_to_attr_name[attr] = attr_name
                     cls._field_name_to_field[attr_name] = attr

@@ -503,5 +503,26 @@ class ToStringTest(unittest.TestCase):
 }>'''[1:]
         self.assertEqual(expected, str(m))
 
+
+class InheritanceFieldMappingTest(unittest.TestCase):
+    class Base(apilib.Model):
+        base = apilib.Field(apilib.String())
+
+    class Subclass(Base):
+        subclass = apilib.Field(apilib.String())
+
+    def test_inheritance_field_mapping(self):
+        sm = self.Subclass(base='base string 2', subclass='subclass string 2')
+        bm = self.Base(base='base string')
+        self.assertIsNotNone(bm)
+        self.assertIsNotNone(sm)
+        self.assertEqual('base string', bm.base)
+        self.assertEqual('base string 2', sm.base)
+        self.assertEqual('subclass string 2', sm.subclass)
+        self.assertTrue('base' in self.Base._field_name_to_field)
+        self.assertFalse('subclass' in self.Base._field_name_to_field)
+        self.assertTrue('base' in self.Subclass._field_name_to_field)
+        self.assertTrue('subclass' in self.Subclass._field_name_to_field)
+
 if __name__ == '__main__':
     unittest.main()
