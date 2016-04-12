@@ -124,7 +124,7 @@ class Field(object):
             return self
 
     def __set__(self, instance, value):
-        instance._data[self._name] = value
+        instance._data[self._name] = self._type.normalize(value)
 
     def to_string(self, value, indent):
         return self._type.to_string(value, indent)
@@ -136,58 +136,6 @@ class Field(object):
                 return None
         return value
 
-class ListField(Field):
-    def __init__(self, field_type_or_model_class):
-        if inspect.isclass(field_type_or_model_class) and issubclass(field_type_or_model_class, Model):
-            field_type = ModelFieldType(field_type_or_model_class)
-        else:
-            field_type = field_type_or_model_class
-        super(ListField, self).__init__(field_type)
-
-    def to_json(self, value):
-        if value is None:
-            return None
-        return [self._type.to_json(item) for item in value]
-
-    def from_json(self, value, error_context, context=None):
-        if value is not None:
-            value = [self._type.from_json(item, error_context.extend(index=i), context) for i, item in enumerate(value)]
-            if error_context.has_errors():
-                return None
-        return self._validate(value, error_context, context)
-
-    def __set__(self, instance, value):
-        instance._data[self._name] = list(value) if value is not None else None
-
-    def to_string(self, value, indent):
-        if value is None:
-            return unicode(None)
-        new_indent = indent + '  '
-        parts = ['['] + [new_indent + self._type.to_string(item, new_indent) for item in value] + [new_indent + ']']
-        return '\n'.join(parts)
-
-class ModelField(Field):
-    def __init__(self, field_type_or_model_class):
-        if inspect.isclass(field_type_or_model_class) and issubclass(field_type_or_model_class, Model):
-            field_type = ModelFieldType(field_type_or_model_class)
-        else:
-            field_type = field_type_or_model_class
-        super(ModelField, self).__init__(field_type)
-
-    def to_json(self, value):
-        return value.to_json() if value else None
-
-    def from_json(self, value, error_context, context=None):
-        value = self._type.from_json(value, error_context, context=None) if value is not None else None
-        if error_context.has_errors():
-            return None
-        return self._validate(value, error_context, context=None)
-
-    def to_string(self, value, indent):
-        if value is None:
-            return unicode(value)
-        return value.to_string(indent + '  ')
-
 class FieldType(object):
     type_name = None
     json_type = None
@@ -197,6 +145,9 @@ class FieldType(object):
         return value
 
     def from_json(self, value, error_context, context=None):
+        return value
+
+    def normalize(self, value):
         return value
 
     # Only for documentation
@@ -272,7 +223,7 @@ class Boolean(FieldType):
             return bool(value) if value is not None else None
         return None
 
-class ModelFieldType(FieldType):
+class ModelType(FieldType):
     json_type = 'object'
 
     def __init__(self, model_class):
@@ -289,6 +240,39 @@ class ModelFieldType(FieldType):
 
     def to_string(self, value, indent):
         return value.to_string(indent + '  ') if value is not None else unicode(None)
+
+class ListType(FieldType):
+    json_type = 'list'
+
+    def __init__(self, field_type_or_model_class):
+        if inspect.isclass(field_type_or_model_class) and issubclass(field_type_or_model_class, Model):
+            self._type = ModelType(field_type_or_model_class)
+        else:
+            self._type = field_type_or_model_class
+
+    def to_json(self, value):
+        if value is None:
+            return None
+        return [self._type.to_json(item) for item in value]
+
+    def from_json(self, value, error_context, context=None):
+        if value is None:
+            return None
+        value = [self._type.from_json(item, error_context.extend(index=i), context) for i, item in enumerate(value)]
+        return value if not error_context.has_errors() else None
+
+    def normalize(self, value):
+        return list(value) if value is not None else None
+
+    def get_type_name(self):
+        return 'list(%s)' % self._type.get_type_name()
+
+    def to_string(self, value, indent):
+        if value is None:
+            return unicode(None)
+        new_indent = indent + '    '
+        parts = ['['] + ['%s%s,' % (new_indent, self._type.to_string(item, new_indent)) for item in value] + [new_indent + ']']
+        return '\n'.join(parts)
 
 class DateTime(FieldType):
     type_name = 'datetime'

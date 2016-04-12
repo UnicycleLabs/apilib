@@ -39,9 +39,11 @@ class EmptiesAndUnknownsTest(unittest.TestCase):
         self.assertEqual('Unknown field "foo"', e.exception.message)
 
     def test_deserialize_unknown_field(self):
-        m = BasicScalarModel.from_json({'foo': 'blah'})
-        self.assertIsNotNone(m)
-        self.assertFalse(hasattr(m, 'foo'))
+        with self.assertRaises(apilib.DeserializationError) as e:
+            BasicScalarModel.from_json({'foo': 'blah'})
+        self.assertEqual(1, len(e.exception.errors))
+        self.assertEqual(apilib.CommonErrorCodes.UNKNOWN_FIELD, e.exception.errors[0].code)
+        self.assertEqual('foo', e.exception.errors[0].path)
 
 class BasicScalerFieldsTest(unittest.TestCase):
     def test_instantiate(self):
@@ -64,10 +66,10 @@ class BasicScalerFieldsTest(unittest.TestCase):
 
 
 class ScalarListModel(apilib.Model):
-    lstring = apilib.ListField(apilib.String())
-    lint = apilib.ListField(apilib.Integer())
-    lfloat = apilib.ListField(apilib.Float())
-    lbool = apilib.ListField(apilib.Boolean())
+    lstring = apilib.Field(apilib.ListType(apilib.String()))
+    lint = apilib.Field(apilib.ListType(apilib.Integer()))
+    lfloat = apilib.Field(apilib.ListType(apilib.Float()))
+    lbool = apilib.Field(apilib.ListType(apilib.Boolean()))
 
 class ScalarListsTest(unittest.TestCase):
     def test_instantiate_empties(self):
@@ -150,8 +152,8 @@ class BasicChildModel(apilib.Model):
     fstring = apilib.Field(apilib.String())
 
 class BasicParentModel(apilib.Model):
-    fchild = apilib.ModelField(BasicChildModel)
-    lchild = apilib.ListField(BasicChildModel)
+    fchild = apilib.Field(apilib.ModelType(BasicChildModel))
+    lchild = apilib.Field(apilib.ListType(BasicChildModel))
 
 class BasicNestedModelTest(unittest.TestCase):
     def test_empties(self):
@@ -234,8 +236,8 @@ class ModelWithDates(apilib.Model):
     fdatetime = apilib.Field(apilib.DateTime())
 
 class ModelWithDateList(apilib.Model):
-    ldate = apilib.ListField(apilib.Date())
-    ldatetime = apilib.ListField(apilib.DateTime())
+    ldate = apilib.Field(apilib.ListType(apilib.Date()))
+    ldatetime = apilib.Field(apilib.ListType(apilib.DateTime()))
 
 class DateFieldTest(unittest.TestCase):
     def test_empties(self):
@@ -307,10 +309,6 @@ class DateFieldTest(unittest.TestCase):
         self.assertEqual(datetime.date(2016, 2, 18), m.fdate)
         self.assertEqual(datetime.datetime(2012, 4, 12, 10, 8, 23, tzinfo=tz.tzutc()), m.fdatetime)
 
-        m = ModelWithDates.from_json({'fdatetime': u'2050-08-18T00:00:00', 'fdate': u'2034-05-10'})
-        self.assertEqual(datetime.date(2034, 5, 10), m.fdate)
-        self.assertEqual(datetime.datetime(2050, 8, 18), m.fdatetime)
-
         m = ModelWithDates.from_json({'fdatetime': u'2012-04-12T10:08:23-07:00', 'fdate': u'2016-02-18'})
         self.assertEqual(datetime.date(2016, 2, 18), m.fdate)
         self.assertEqual(datetime.datetime(2012, 4, 12, 10, 8, 23, tzinfo=tz.gettz('America/Los_Angeles')), m.fdatetime)
@@ -380,16 +378,16 @@ class ExtendedFieldsTest(unittest.TestCase):
 
 class NGrandchild(apilib.Model):
     fint = apilib.Field(apilib.Integer())
-    lfloat = apilib.ListField(apilib.Float())
+    lfloat = apilib.Field(apilib.ListType(apilib.Float()))
 
 class NChild(apilib.Model):
-    fgrandchild = apilib.ModelField(NGrandchild)
-    lgrandchild = apilib.ListField(NGrandchild)
+    fgrandchild = apilib.Field(apilib.ModelType(NGrandchild))
+    lgrandchild = apilib.Field(apilib.ListType(NGrandchild))
     fstring = apilib.Field(apilib.String())
 
 class NParent(apilib.Model):
-    fchild = apilib.ModelField(NChild)
-    lchild = apilib.ListField(NChild)
+    fchild = apilib.Field(apilib.ModelType(NChild))
+    lchild = apilib.Field(apilib.ListType(NChild))
 
 class MultipleNestingTest(unittest.TestCase):
     def test_serialize(self):
@@ -446,8 +444,8 @@ class ToStringModel(apilib.Model):
     fdatetime = apilib.Field(apilib.DateTime())
     fdecimal = apilib.Field(apilib.Decimal())
     fenum = apilib.Field(apilib.Enum(['JERRY', 'GEORGE']))
-    fchild = apilib.ModelField(BasicScalarModel)
-    lchild = apilib.ListField(BasicScalarModel)
+    fchild = apilib.Field(apilib.ModelType(BasicScalarModel))
+    lchild = apilib.Field(apilib.ListType(BasicScalarModel))
 
 class ToStringTest(unittest.TestCase):
     def test_foo(self):
@@ -488,18 +486,18 @@ class ToStringTest(unittest.TestCase):
   fint: 123,
   fstring: 'hello\\'world',
   lchild: [
-  <BasicScalarModel: {
-      fbool: True,
-      ffloat: -0.0002,
-      fint: -543,
-      fstring: '345',
-    }>
-  <BasicScalarModel: {
-      fbool: None,
-    }>
-  <BasicScalarModel: {
-    }>
-  ],
+    <BasicScalarModel: {
+        fbool: True,
+        ffloat: -0.0002,
+        fint: -543,
+        fstring: '345',
+      }>,
+    <BasicScalarModel: {
+        fbool: None,
+      }>,
+    <BasicScalarModel: {
+      }>,
+    ],
 }>'''[1:]
         self.assertEqual(expected, str(m))
 
