@@ -10,6 +10,9 @@ try:
 except ImportError:
     hashids = None
 
+from .validation import CommonErrorCodes
+from .validation import ErrorContext
+
 ID_ENCRYPTION_KEY = None  # Set this to encrypt ids
 ID_HASHER = None
 
@@ -28,6 +31,13 @@ class ModuleRequired(Exception):
 class ConfigurationRequired(Exception):
     pass
 
+class DeserializationError(Exception):
+    def __init__(self, errors):
+        self.errors = errors
+
+    def __str__(self):
+        return 'DeserializationError:\n%s' % '\n'.join(str(e) for e in self.errors)
+
 class Model(object):
     def __init__(self, **kwargs):
         self._data = {}
@@ -44,13 +54,20 @@ class Model(object):
         return json.dumps(self.to_json())
 
     @classmethod
-    def from_json(cls, obj):
+    def from_json(cls, obj, error_context=None, context=None):
         cls._populate_fields()
         kwargs = {}
-        for key, value in obj.iteritems() or []:
+        is_root = not error_context
+        error_context = error_context or ErrorContext()
+        for key, value in obj.iteritems() if obj is not None else []:
             field = cls._field_name_to_field.get(key)
             if field:
-                kwargs[key] = field.from_json(value)
+                context = context.for_parent(obj) if context else None
+                kwargs[key] = field.from_json(value, error_context.extend(field=key), context)
+        if error_context.has_errors():
+            if is_root:
+                raise DeserializationError(error_context.all_errors())
+            return None
         return cls(**kwargs)
 
     @classmethod
@@ -80,16 +97,20 @@ class Model(object):
         return '\n'.join(parts)
 
 class Field(object):
-    def __init__(self, field_type):
+    def __init__(self, field_type, validators=()):
         self._type = field_type
         # Will be populated when the model is instantiated
         self._name = None
+        self._validators = validators
 
     def to_json(self, value):
         return self._type.to_json(value)
 
-    def from_json(self, value):
-        return self._type.from_json(value)
+    def from_json(self, value, error_context, context=None):
+        value = self._type.from_json(value, error_context, context=None)
+        if error_context.has_errors():
+            return None
+        return self._validate(value, error_context, context=None)
 
     def __get__(self, instance, type=None):
         if instance:
@@ -102,6 +123,13 @@ class Field(object):
 
     def to_string(self, value, indent):
         return self._type.to_string(value, indent)
+
+    def _validate(self, value, error_context, context=None):
+        for validator in self._validators:
+            value = validator.validate(value, error_context, context)
+            if error_context.has_errors():
+                return None
+        return value
 
 class ListField(Field):
     def __init__(self, field_type_or_model_class):
@@ -116,10 +144,12 @@ class ListField(Field):
             return None
         return [self._type.to_json(item) for item in value]
 
-    def from_json(self, value):
-        if value is None:
-            return None
-        return [self._type.from_json(item) for item in value]
+    def from_json(self, value, error_context, context=None):
+        if value is not None:
+            value = [self._type.from_json(item, error_context.extend(index=i), context) for i, item in enumerate(value)]
+            if error_context.has_errors():
+                return None
+        return self._validate(value, error_context, context)
 
     def __set__(self, instance, value):
         instance._data[self._name] = list(value) if value is not None else None
@@ -142,8 +172,11 @@ class ModelField(Field):
     def to_json(self, value):
         return value.to_json() if value else None
 
-    def from_json(self, value):
-        return self._type.from_json(value) if value is not None else None
+    def from_json(self, value, error_context, context=None):
+        value = self._type.from_json(value, error_context, context=None) if value is not None else None
+        if error_context.has_errors():
+            return None
+        return self._validate(value, error_context, context=None)
 
     def to_string(self, value, indent):
         if value is None:
@@ -158,7 +191,7 @@ class FieldType(object):
     def to_json(self, value):
         return value
 
-    def from_json(self, value):
+    def from_json(self, value, error_context, context=None):
         return value
 
     # Only for documentation
@@ -175,6 +208,14 @@ class FieldType(object):
     def to_string(self, value, indent):
         return unicode(value)
 
+def _validate_types(value, types, error_context, type_message):
+    if value is not None and type(value) not in types:
+        error_context.add_error(
+            CommonErrorCodes.INVALID_TYPE,
+            'Unexpected type %s, expected %s' % (type(value), type_message))
+        return False
+    return True
+
 class String(FieldType):
     type_name = 'string'
     json_type = 'string'
@@ -182,8 +223,10 @@ class String(FieldType):
     def to_json(self, value):
         return unicode(value) if value is not None else None
 
-    def from_json(self, value):
-        return unicode(value) if value is not None else None
+    def from_json(self, value, error_context, context=None):
+        if _validate_types(value, (str, unicode), error_context, self.type_name):
+            return unicode(value) if value is not None else None
+        return None
 
     def to_string(self, value, indent):
         return (u"'%s'" % value.replace("'", "\\'")) if value is not None else unicode(None)
@@ -195,8 +238,10 @@ class Integer(FieldType):
     def to_json(self, value):
         return int(value) if value is not None else None
 
-    def from_json(self, value):
-        return int(value) if value is not None else None
+    def from_json(self, value, error_context, context=None):
+        if _validate_types(value, (int, long), error_context, self.type_name):
+            return int(value) if value is not None else None
+        return None
 
 class Float(FieldType):
     type_name = 'float'
@@ -205,8 +250,10 @@ class Float(FieldType):
     def to_json(self, value):
         return float(value) if value is not None else None
 
-    def from_json(self, value):
-        return float(value) if value is not None else None
+    def from_json(self, value, error_context, context=None):
+        if _validate_types(value, (float, int, long), error_context, self.type_name):
+            return float(value) if value is not None else None
+        return None
 
 class Boolean(FieldType):
     type_name = 'boolean'
@@ -215,8 +262,10 @@ class Boolean(FieldType):
     def to_json(self, value):
         return bool(value) if value is not None else None
 
-    def from_json(self, value):
-        return bool(value) if value is not None else None
+    def from_json(self, value, error_context, context=None):
+        if _validate_types(value, (bool, int), error_context, self.type_name):
+            return bool(value) if value is not None else None
+        return None
 
 class ModelFieldType(FieldType):
     json_type = 'object'
@@ -227,8 +276,8 @@ class ModelFieldType(FieldType):
     def to_json(self, value):
         return value.to_json() if value is not None else None
 
-    def from_json(self, value):
-        return self.model_class.from_json(value) if value is not None else None
+    def from_json(self, value, error_context, context=None):
+        return self.model_class.from_json(value, error_context, context) if value is not None else None
 
     def get_type_name(self):
         return 'object(%s)' % self.model_class.__name__
@@ -244,8 +293,18 @@ class DateTime(FieldType):
     def to_json(self, value):
         return unicode(value.isoformat()) if value is not None else None
 
-    def from_json(self, value):
-        return dateutil_parser.parse(unicode(value)) if value else None
+    def from_json(self, value, error_context, context=None):
+        if value is None:
+            return None
+        if type(value) in (str, unicode):
+            try:
+                return dateutil_parser.parse(unicode(value))
+            except ValueError:
+                pass
+        error_context.add_error(
+            CommonErrorCodes.INVALID_VALUE,
+           'Unable to parse "%s" as a datetime. Value must be in a string ISO 8601 format (YYYY-MM-DDTHH:MM:SS.mmmmmm+HH:MM)' % value)
+        return None
 
 class Date(FieldType):
     type_name = 'date'
@@ -255,8 +314,18 @@ class Date(FieldType):
     def to_json(self, value):
         return unicode(value.isoformat()) if value is not None else None
 
-    def from_json(self, value):
-        return datetime.datetime.strptime(value, '%Y-%m-%d').date() if value else None
+    def from_json(self, value, error_context, context=None):
+        if value is None:
+            return None
+        if type(value) in (str, unicode):
+            try:
+                return datetime.datetime.strptime(value, '%Y-%m-%d').date()
+            except ValueError:
+                pass
+        error_context.add_error(
+            CommonErrorCodes.INVALID_VALUE,
+           'Unable to parse "%s" as a date. Value must be a string in ISO 8601 format (YYYY-MM-DD)' % value)
+        return None
 
 class Decimal(FieldType):
     type_name = 'decimal'
@@ -266,15 +335,35 @@ class Decimal(FieldType):
     def to_json(self, value):
         return unicode(value) if value is not None else None
 
-    def from_json(self, value):
-        return decimal.Decimal(value) if value is not None else None
+    def from_json(self, value, error_context, context=None):
+        if value is not None:
+            try:
+                return decimal.Decimal(value)
+            except (TypeError, decimal.InvalidOperation):
+                error_context.add_error(
+                    CommonErrorCodes.INVALID_VALUE,
+                   'Unable to parse "%s" as a decimal number' % value)
+        return None
 
-class Enum(String):
+class Enum(FieldType):
+    json_type = 'string'
+
     def __init__(self, values):
-        self.values = values
+        self.values = set(values)
+
+    def to_json(self, value):
+        return unicode(value) if value is not None else None
+
+    def from_json(self, value, error_context, context=None):
+        if value is not None and value not in self.values:
+                error_context.add_error(
+                    CommonErrorCodes.INVALID_VALUE,
+                   '"%s" is not a valid enum for this type. Valid values are %s' % (value, ', '.join(sorted(self.values))))
+
+        return value
 
     def get_type_name(self):
-        return 'enum(%s)' % ', '.join(self.values)
+        return 'enum(%s)' % ', '.join(sorted(self.values))
 
     def to_string(self, value, indent):
         return unicode(value)
@@ -293,10 +382,16 @@ class EncryptedId(FieldType):
     def to_json(self, value):
         return ID_HASHER.encode(value) if value is not None else None
 
-    def from_json(self, value):
+    def from_json(self, value, error_context, context=None):
         if value is None:
+            return None
+        if type(value) not in (str, unicode):
+            error_context.add_error(CommonErrorCodes.INVALID_TYPE, 'Ids must be passed as strings')
             return None
         # Unclear why this doesn't work with unicode values,
         # must coerce it to be a string.
         ids = ID_HASHER.decode(str(value))
-        return ids[0] if ids else None
+        if not ids or len(ids) > 1:
+            error_context.add_error(CommonErrorCodes.INVALID_VALUE, '"%s" is not a valid id' % value)
+            return None
+        return ids[0]

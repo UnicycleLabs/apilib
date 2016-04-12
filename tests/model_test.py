@@ -62,13 +62,6 @@ class BasicScalerFieldsTest(unittest.TestCase):
         self.assertEqual(2.57, m.ffloat)
         self.assertEqual(True, m.fbool)
 
-    def test_deserialization_type_casting(self):
-        m = BasicScalarModel.from_json({'ffloat': '2.57', 'fint': '120', 'fstring': 1234, 'fbool': '1'})
-        self.assertEqual('1234', m.fstring)
-        self.assertEqual(120, m.fint)
-        self.assertEqual(2.57, m.ffloat)
-        self.assertEqual(True, m.fbool)
-
 
 class ScalarListModel(apilib.Model):
     lstring = apilib.ListField(apilib.String())
@@ -151,13 +144,6 @@ class ScalarListsTest(unittest.TestCase):
         self.assertEqual([None], m.lint)
         self.assertIsNone(m.lfloat)
         self.assertIsNone(m.lbool)
-
-    def test_deserialization_type_casting(self):
-        m = ScalarListModel.from_json({'lstring': [1, u'b', 3], 'lbool': ['a', True, False], 'lint': ['5', 6.0], 'lfloat': ['2.0', '-1']})
-        self.assertEqual(['1', 'b', '3'], m.lstring)
-        self.assertEqual([5, 6], m.lint)
-        self.assertEqual([2.0, -1.0], m.lfloat)
-        self.assertEqual([True, True, False], m.lbool)
 
 
 class BasicChildModel(apilib.Model):
