@@ -531,6 +531,7 @@ class ToStringModel(apilib.Model):
     fenum = apilib.Field(apilib.Enum(['JERRY', 'GEORGE']))
     fchild = apilib.Field(apilib.ModelType(BasicScalarModel))
     lchild = apilib.Field(apilib.ListType(BasicScalarModel))
+    dchild = apilib.Field(apilib.DictType(BasicScalarModel))
 
 class ToStringTest(unittest.TestCase):
     def test_foo(self):
@@ -555,9 +556,19 @@ class ToStringTest(unittest.TestCase):
                 BasicScalarModel(
                     fbool=None),
                 BasicScalarModel(),
-            ])
+            ],
+            dchild={
+                'foo': BasicScalarModel(fstring='789'),
+                'bar': None,
+            })
         expected = '''
 <ToStringModel: {
+  dchild: {
+    foo: <BasicScalarModel: {
+        fstring: '789',
+      }>,
+    bar: None,
+    },
   fbool: False,
   fchild: <BasicScalarModel: {
     ffloat: None,
@@ -606,6 +617,135 @@ class InheritanceFieldMappingTest(unittest.TestCase):
         self.assertFalse('subclass' in self.Base._field_name_to_field)
         self.assertTrue('base' in self.Subclass._field_name_to_field)
         self.assertTrue('subclass' in self.Subclass._field_name_to_field)
+
+
+class DeeplyNested(apilib.Model):
+    fdeep = apilib.Field(apilib.DictType(apilib.ListType(apilib.ModelType(BasicScalarModel))))
+
+class DeepNestingTest(unittest.TestCase):
+    def test_instantiate(self):
+        m = DeeplyNested(fdeep={'a': [BasicScalarModel(fstring='blah')]})
+        self.assertIsNotNone(m.fdeep)
+        self.assertIsNotNone(m.fdeep.get('a'))
+        self.assertEqual(1, len(m.fdeep['a']))
+        self.assertIsNotNone(m.fdeep['a'][0])
+        self.assertEqual('blah', m.fdeep['a'][0].fstring)
+
+    def test_serialize(self):
+        m = DeeplyNested(fdeep={'a': [BasicScalarModel(fstring='blah')]})
+        self.assertEqual({'fdeep': {'a': [{'fstring': u'blah'}]}}, m.to_json())
+
+    def test_deserialize(self):
+        m = DeeplyNested.from_json({'fdeep': {'a': [{'fstring': u'blah'}]}})
+        self.assertIsNotNone(m.fdeep)
+        self.assertIsNotNone(m.fdeep.get('a'))
+        self.assertEqual(1, len(m.fdeep['a']))
+        self.assertIsNotNone(m.fdeep['a'][0])
+        self.assertEqual('blah', m.fdeep['a'][0].fstring)
+
+
+class ArbitraryPrimitivesModel(apilib.Model):
+    fany = apilib.Field(apilib.AnyPrimitive())
+    lany = apilib.Field(apilib.ListType(apilib.AnyPrimitive()))
+    dany = apilib.Field(apilib.DictType(apilib.AnyPrimitive()))
+
+class ArbitraryPrimitivesTest(unittest.TestCase):
+    def test_empties(self):
+        m = ArbitraryPrimitivesModel()
+        self.assertIsNone(m.fany)
+        self.assertIsNone(m.lany)
+        self.assertIsNone(m.dany)
+
+        m = ArbitraryPrimitivesModel(fany=None, lany=None, dany=None)
+        self.assertIsNone(m.fany)
+        self.assertIsNone(m.lany)
+        self.assertIsNone(m.dany)
+
+        m = ArbitraryPrimitivesModel(fany={}, lany=[], dany={})
+        self.assertEqual({}, m.fany)
+        self.assertEqual([], m.lany)
+        self.assertEqual({}, m.dany)
+
+        m = ArbitraryPrimitivesModel()
+        self.assertEqual({}, m.to_json())
+
+        m = ArbitraryPrimitivesModel(fany=None, lany=None, dany=None)
+        self.assertEqual({'fany': None, 'dany': None, 'lany': None}, m.to_json())
+
+        m = ArbitraryPrimitivesModel.from_json({})
+        self.assertIsNone(m.fany)
+        self.assertIsNone(m.lany)
+        self.assertIsNone(m.dany)
+
+        m = ArbitraryPrimitivesModel.from_json({'fany': None, 'dany': None, 'lany': None})
+        self.assertIsNone(m.fany)
+        self.assertIsNone(m.lany)
+        self.assertIsNone(m.dany)
+
+    def test_instantiate(self):
+        m = ArbitraryPrimitivesModel(fany='foo', lany=[1, False, 'hello'], dany={'a': 1, 'b': 0.1})
+        self.assertEqual('foo', m.fany)
+        self.assertEqual([1, False, 'hello'], m.lany)
+        self.assertEqual({'a': 1, 'b': 0.1}, m.dany)
+
+        m = ArbitraryPrimitivesModel(fany=['foo'], lany=[1, {'asdf': 345}], dany={'a': [{'blah': True}]})
+        self.assertEqual(['foo'], m.fany)
+        self.assertEqual([1, {'asdf': 345}], m.lany)
+        self.assertEqual({'a': [{'blah': True}]}, m.dany)
+
+    def test_serialize(self):
+        m = ArbitraryPrimitivesModel(fany='foo', lany=[1, False, 'hello'], dany={'a': 1, 'b': 0.1})
+        self.assertEqual(
+            {'fany': 'foo', 'dany': {'a': 1, 'b': 0.1}, 'lany': [1, False, 'hello']},
+            m.to_json())
+
+        m = ArbitraryPrimitivesModel(fany=['foo'], lany=[1, {'asdf': 345}], dany={'a': [{'blah': True}]})
+        self.assertEqual(
+            {'fany': ['foo'], 'dany': {'a': [{'blah': True}]}, 'lany': [1, {'asdf': 345}]},
+            m.to_json())
+
+    def test_serialize(self):
+        m = ArbitraryPrimitivesModel.from_json({'fany': 'foo', 'dany': {'a': 1, 'b': 0.1}, 'lany': [1, False, 'hello']})
+        self.assertEqual('foo', m.fany)
+        self.assertEqual([1, False, 'hello'], m.lany)
+        self.assertEqual({'a': 1, 'b': 0.1}, m.dany)
+
+        m = ArbitraryPrimitivesModel.from_json( {'fany': ['foo'], 'dany': {'a': [{'blah': True}]}, 'lany': [1, {'asdf': 345}]})
+        self.assertEqual(['foo'], m.fany)
+        self.assertEqual([1, {'asdf': 345}], m.lany)
+        self.assertEqual({'a': [{'blah': True}]}, m.dany)
+
+    def test_to_string(self):
+        m = ArbitraryPrimitivesModel(fany='foo', lany=[1, False, 'hello'], dany={'a': 1, 'b': 0.1})
+        expected = '''
+<ArbitraryPrimitivesModel: {
+  dany: {
+    a: 1,
+    b: 0.1,
+    },
+  fany: foo,
+  lany: [
+    1,
+    False,
+    hello,
+    ],
+}>'''[1:]
+        self.assertEqual(expected, str(m))
+
+        m = ArbitraryPrimitivesModel(fany=['foo'], lany=[1, {'asdf': 345}], dany={'a': [{'blah': True}]})
+        expected = '''
+<ArbitraryPrimitivesModel: {
+  dany: {
+    a: [{'blah': True}],
+    },
+  fany: ['foo'],
+  lany: [
+    1,
+    {'asdf': 345},
+    ],
+}>'''[1:]
+        self.assertEqual(expected, str(m))
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -304,7 +304,11 @@ class DictType(FieldType):
         return 'dict(%s)' % self._type.get_type_name()
 
     def to_string(self, value, indent):
-        pass
+        if value is None:
+            return unicode(None)
+        new_indent = indent + '    '
+        parts = ['{'] + ['%s%s: %s,' % (new_indent, k, self._type.to_string(v, new_indent)) for k, v in value.iteritems()] + [new_indent + '}']
+        return '\n'.join(parts)
 
 class DateTime(FieldType):
     type_name = 'datetime'
@@ -437,3 +441,17 @@ class EncryptedId(FieldType):
             error_context.add_error(CommonErrorCodes.INVALID_VALUE, '"%s" is not a valid id' % value)
             return None
         return ids[0]
+
+class AnyPrimitive(FieldType):
+    type_name = 'any'
+    json_type = 'any'
+    description = 'Any primitive type (int, float, boolean, string, list, object) and compositions thereof. Used for mixed-type objects, like an arbitrary dict'
+
+    def to_json(self, value):
+        return value
+
+    def from_json(self, value, error_context, context=None):
+        return value
+
+    def to_string(self, value, indent):
+        return unicode(value)
