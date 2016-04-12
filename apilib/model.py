@@ -36,7 +36,7 @@ class DeserializationError(Exception):
         self.errors = errors
 
     def __str__(self):
-        return 'DeserializationError:\n%s' % '\n'.join(str(e) for e in self.errors)
+        return 'DeserializationError:\n  %s' % '\n  '.join(str(e) for e in self.errors)
 
 class Model(object):
     def __init__(self, **kwargs):
@@ -64,6 +64,8 @@ class Model(object):
             if field:
                 context = context.for_parent(obj) if context else None
                 kwargs[key] = field.from_json(value, error_context.extend(field=key), context)
+            else:
+                error_context.extend(field=key).add_error(CommonErrorCodes.UNKNOWN_FIELD, 'Unknown field "%s"' % key)
         if error_context.has_errors():
             if is_root:
                 raise DeserializationError(error_context.all_errors())
@@ -215,7 +217,7 @@ def _validate_types(value, types, error_context, type_message):
     if value is not None and type(value) not in types:
         error_context.add_error(
             CommonErrorCodes.INVALID_TYPE,
-            'Unexpected type %s, expected %s' % (type(value), type_message))
+            'Unexpected type %s, expected %s' % (type(value).__name__, type_message))
         return False
     return True
 
@@ -299,15 +301,20 @@ class DateTime(FieldType):
     def from_json(self, value, error_context, context=None):
         if value is None:
             return None
-        if type(value) in (str, unicode):
-            try:
-                return dateutil_parser.parse(unicode(value))
-            except ValueError:
-                pass
-        error_context.add_error(
-            CommonErrorCodes.INVALID_VALUE,
-           'Unable to parse "%s" as a datetime. Value must be in a string ISO 8601 format (YYYY-MM-DDTHH:MM:SS.mmmmmm+HH:MM)' % value)
-        return None
+        if type(value) not in (str, unicode):
+            error_context.add_error(CommonErrorCodes.INVALID_TYPE,
+                'Value %s is invalid for datetime. Value must be a string in ISO 8601 format (YYYY-MM-DDTHH:MM:SS.mmmmmm+HH:MM)' % value)
+            return None
+        try:
+            dt = dateutil_parser.parse(unicode(value))
+        except ValueError:
+            dt = None
+        if not dt or not dt.tzinfo:
+            error_context.add_error(
+                CommonErrorCodes.INVALID_VALUE,
+               'Unable to parse "%s" as a datetime. Value must be a string in ISO 8601 format (YYYY-MM-DDTHH:MM:SS.mmmmmm+HH:MM)' % value)
+            return None
+        return dt
 
 class Date(FieldType):
     type_name = 'date'
@@ -320,11 +327,14 @@ class Date(FieldType):
     def from_json(self, value, error_context, context=None):
         if value is None:
             return None
-        if type(value) in (str, unicode):
-            try:
-                return datetime.datetime.strptime(value, '%Y-%m-%d').date()
-            except ValueError:
-                pass
+        if type(value) not in (str, unicode):
+            error_context.add_error(CommonErrorCodes.INVALID_TYPE,
+                'Value %s is invalid for date. Value must be a string in ISO 8601 format (YYYY-MM-DD)' % value)
+            return None
+        try:
+            return datetime.datetime.strptime(value, '%Y-%m-%d').date()
+        except ValueError:
+            pass
         error_context.add_error(
             CommonErrorCodes.INVALID_VALUE,
            'Unable to parse "%s" as a date. Value must be a string in ISO 8601 format (YYYY-MM-DD)' % value)
@@ -340,6 +350,12 @@ class Decimal(FieldType):
 
     def from_json(self, value, error_context, context=None):
         if value is not None:
+            if type(value) not in (str, unicode):
+                error_context.add_error(
+                    CommonErrorCodes.INVALID_TYPE,
+                   'Decimal values must be passed as a string')
+                return None
+
             try:
                 return decimal.Decimal(value)
             except (TypeError, decimal.InvalidOperation):
@@ -358,11 +374,18 @@ class Enum(FieldType):
         return unicode(value) if value is not None else None
 
     def from_json(self, value, error_context, context=None):
-        if value is not None and value not in self.values:
-                error_context.add_error(
-                    CommonErrorCodes.INVALID_VALUE,
-                   '"%s" is not a valid enum for this type. Valid values are %s' % (value, ', '.join(sorted(self.values))))
-
+        if value is None:
+            return None
+        if type(value) not in (str, unicode):
+            error_context.add_error(
+                CommonErrorCodes.INVALID_TYPE,
+                'Value %s is invalid for enums. Enum values must be passed as strings' % value)
+            return None
+        if value not in self.values:
+            error_context.add_error(
+                CommonErrorCodes.INVALID_VALUE,
+               '"%s" is not a valid enum for this type. Valid values are %s' % (value, ', '.join(sorted(self.values))))
+            return None
         return value
 
     def get_type_name(self):
