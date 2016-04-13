@@ -38,7 +38,7 @@ class ErrorContext(object):
         elif index is not None:
             path = '%s[%d]' % (self.path, index)
         elif key is not None:
-            path = '%s[%s]' % (self.path, key)
+            path = '%s["%s"]' % (self.path, key)
         else:
             raise TypeError('Must specify exactly one keyword arg of either field=, index=, or key=')
         ec = ErrorContext(path)
@@ -48,7 +48,7 @@ class ErrorContext(object):
     def all_errors(self):
         errors = self.errors[:]
         for child in self.children:
-            errors.extend(child.errors)
+            errors.extend(child.all_errors())
         return errors
 
     def has_errors(self):

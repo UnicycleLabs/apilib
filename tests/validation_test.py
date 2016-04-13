@@ -177,6 +177,33 @@ class DateTimeValidationTest(unittest.TestCase, ExtraAssertionsMixin):
         self.assertFalse(ec.has_errors())
         self.assertEqual(datetime.datetime(2023, 12, 12, 15, 37, 37, tzinfo=tz.tzoffset(None, 21600)), m.fdatetime)
 
+class ErrorFieldTestChild(apilib.Model):
+    lstring = apilib.Field(apilib.ListType(apilib.String()))
+    fint = apilib.Field(apilib.Integer())
+
+class ErrorFieldTestParent(apilib.Model):
+    fchild = apilib.Field(apilib.ModelType(ErrorFieldTestChild))
+    lchild = apilib.Field(apilib.ListType(ErrorFieldTestChild))
+    dchild = apilib.Field(apilib.DictType(ErrorFieldTestChild))
+
+class ErrorFieldPathTest(unittest.TestCase, ExtraAssertionsMixin):
+    def test_error_field_paths(self):
+        ec = apilib.ErrorContext()
+        m = ErrorFieldTestParent.from_json({
+            'fchild': {'lstring': [None, None, -1], 'fint': 'invalid'},
+            'lchild': [None, {'lstring': [None, None, None, -1], 'fint': 'invalid'}],
+            'dchild': {'a': {'lstring': [-1], 'fint': 'invalid'}},
+            }, ec)
+        self.assertIsNone(m)
+        errors = ec.all_errors()
+        self.assertEqual(6, len(errors))
+        self.assertHasError(errors, 'INVALID_TYPE', 'fchild.lstring[2]')
+        self.assertHasError(errors, 'INVALID_TYPE', 'fchild.fint')
+        self.assertHasError(errors, 'INVALID_TYPE', 'lchild[1].lstring[3]')
+        self.assertHasError(errors, 'INVALID_TYPE', 'lchild[1].fint')
+        self.assertHasError(errors, 'INVALID_TYPE', 'dchild["a"].lstring[0]')
+        self.assertHasError(errors, 'INVALID_TYPE', 'dchild["a"].fint')
+
 
 if __name__ == '__main__':
     unittest.main()
