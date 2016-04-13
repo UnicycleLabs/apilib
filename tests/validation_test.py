@@ -1,4 +1,7 @@
+import datetime
 import unittest
+
+from dateutil import tz
 
 import apilib
 
@@ -25,13 +28,15 @@ class AllBasicTypesModel(apilib.Model):
     fenum = apilib.Field(apilib.Enum(['Jerry', 'George']))
     fid = apilib.Field(apilib.EncryptedId())
 
-class ValidationTest(unittest.TestCase):
+class ExtraAssertionsMixin(object):
     def assertHasError(self, errors, error_code, path):
         for error in errors:
             if error.code == error_code and error.path == path:
                 return
         self.fail('Error with code %s and path %s not found' % (error_code, path))
 
+
+class ValidationTest(unittest.TestCase, ExtraAssertionsMixin):
     def test_simple_valid(self):
         ec = apilib.ErrorContext()
         m = SimpleValidationModel.from_json(None, error_context=ec)
@@ -77,6 +82,100 @@ class ValidationTest(unittest.TestCase):
         self.assertHasError(errors, apilib.CommonErrorCodes.INVALID_TYPE, 'fdecimal')
         self.assertHasError(errors, apilib.CommonErrorCodes.INVALID_TYPE, 'fenum')
         self.assertHasError(errors, apilib.CommonErrorCodes.INVALID_TYPE, 'fid')
+
+
+class DateTimeValidationTest(unittest.TestCase, ExtraAssertionsMixin):
+    class Model(apilib.Model):
+        fdate = apilib.Field(apilib.Date())
+        fdatetime = apilib.Field(apilib.DateTime())
+
+    def test_invalid(self):
+        ec = apilib.ErrorContext()
+        m = self.Model.from_json(dict(fdate='20160202'), ec)
+        self.assertEqual(1, len(ec.all_errors()))
+        self.assertHasError(ec.all_errors(), apilib.CommonErrorCodes.INVALID_VALUE, 'fdate')
+
+        ec = apilib.ErrorContext()
+        m = self.Model.from_json(dict(fdate='January 1 2012'), ec)
+        self.assertEqual(1, len(ec.all_errors()))
+        self.assertHasError(ec.all_errors(), apilib.CommonErrorCodes.INVALID_VALUE, 'fdate')
+
+        ec = apilib.ErrorContext()
+        m = self.Model.from_json(dict(fdate='2016-0202'), ec)
+        self.assertEqual(1, len(ec.all_errors()))
+        self.assertHasError(ec.all_errors(), apilib.CommonErrorCodes.INVALID_VALUE, 'fdate')
+
+        ec = apilib.ErrorContext()
+        m = self.Model.from_json(dict(fdate='01/12/2018'), ec)
+        self.assertEqual(1, len(ec.all_errors()))
+        self.assertHasError(ec.all_errors(), apilib.CommonErrorCodes.INVALID_VALUE, 'fdate')
+
+        ec = apilib.ErrorContext()
+        m = self.Model.from_json(dict(fdate='2016-20-03'), ec)
+        self.assertEqual(1, len(ec.all_errors()))
+        self.assertHasError(ec.all_errors(), apilib.CommonErrorCodes.INVALID_VALUE, 'fdate')
+
+        ec = apilib.ErrorContext()
+        m = self.Model.from_json(dict(fdate='2016-04-35'), ec)
+        self.assertEqual(1, len(ec.all_errors()))
+        self.assertHasError(ec.all_errors(), apilib.CommonErrorCodes.INVALID_VALUE, 'fdate')
+
+        ec = apilib.ErrorContext()
+        m = self.Model.from_json(dict(fdatetime='2016-04-12T15:37:37.739018'), ec)
+        self.assertEqual(1, len(ec.all_errors()))
+        self.assertHasError(ec.all_errors(), apilib.CommonErrorCodes.INVALID_VALUE, 'fdatetime')
+
+        ec = apilib.ErrorContext()
+        m = self.Model.from_json(dict(fdatetime='2016-04-12 15:37:37.739018+00:00'), ec)
+        self.assertEqual(1, len(ec.all_errors()))
+        self.assertHasError(ec.all_errors(), apilib.CommonErrorCodes.INVALID_VALUE, 'fdatetime')
+
+        ec = apilib.ErrorContext()
+        m = self.Model.from_json(dict(fdatetime='2016-04-12T15:37+00:00'), ec)
+        self.assertEqual(1, len(ec.all_errors()))
+        self.assertHasError(ec.all_errors(), apilib.CommonErrorCodes.INVALID_VALUE, 'fdatetime')
+
+        ec = apilib.ErrorContext()
+        m = self.Model.from_json(dict(fdatetime='2016-04-12T15:37:00.+00:00'), ec)
+        self.assertEqual(1, len(ec.all_errors()))
+        self.assertHasError(ec.all_errors(), apilib.CommonErrorCodes.INVALID_VALUE, 'fdatetime')
+
+        m = self.Model.from_json(dict(fdatetime='2023-12-12T15:37:37+06:00'), ec)
+        ec = apilib.ErrorContext()
+        m = self.Model.from_json(dict(fdatetime='2023-1-12T15:37:37+06:00'), ec)
+        self.assertEqual(1, len(ec.all_errors()))
+        self.assertHasError(ec.all_errors(), apilib.CommonErrorCodes.INVALID_VALUE, 'fdatetime')
+
+    def test_valid(self):
+        ec = apilib.ErrorContext()
+        m = self.Model.from_json(dict(fdate='2016-04-03'), ec)
+        self.assertFalse(ec.has_errors())
+        self.assertEqual(datetime.date(2016, 4, 3), m.fdate)
+
+        ec = apilib.ErrorContext()
+        m = self.Model.from_json(dict(fdate='2016-4-5'), ec)
+        self.assertFalse(ec.has_errors())
+        self.assertEqual(datetime.date(2016, 4, 5), m.fdate)
+
+        ec = apilib.ErrorContext()
+        m = self.Model.from_json(dict(fdatetime='2016-04-12T15:37:37.739018+00:00'), ec)
+        self.assertFalse(ec.has_errors())
+        self.assertEqual(datetime.datetime(2016, 4, 12, 15, 37, 37, 739018, tzinfo=tz.tzutc()), m.fdatetime)
+
+        ec = apilib.ErrorContext()
+        m = self.Model.from_json(dict(fdatetime='2016-04-12T15:37:37+00:00'), ec)
+        self.assertFalse(ec.has_errors())
+        self.assertEqual(datetime.datetime(2016, 4, 12, 15, 37, 37, tzinfo=tz.tzutc()), m.fdatetime)
+
+        ec = apilib.ErrorContext()
+        m = self.Model.from_json(dict(fdatetime='2016-04-12T15:37:37-07:00'), ec)
+        self.assertFalse(ec.has_errors())
+        self.assertEqual(datetime.datetime(2016, 4, 12, 15, 37, 37, tzinfo=tz.tzoffset(None, -25200)), m.fdatetime)
+
+        ec = apilib.ErrorContext()
+        m = self.Model.from_json(dict(fdatetime='2023-12-12T15:37:37+06:00'), ec)
+        self.assertFalse(ec.has_errors())
+        self.assertEqual(datetime.datetime(2023, 12, 12, 15, 37, 37, tzinfo=tz.tzoffset(None, 21600)), m.fdatetime)
 
 
 if __name__ == '__main__':

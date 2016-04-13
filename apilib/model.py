@@ -2,6 +2,7 @@ import datetime
 import decimal
 import inspect
 import json
+import re
 
 from dateutil import parser as dateutil_parser
 
@@ -315,6 +316,8 @@ class DateTime(FieldType):
     json_type = 'string'
     description = 'A datetime with time zone in ISO 8601 format (YYYY-MM-DDTHH:MM:SS.mmmmmm+HH:MM)'
 
+    ISO_8601_RE = re.compile('\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,6})?(\+|-)\d{2}:\d{2}')
+
     def to_json(self, value):
         return unicode(value.isoformat()) if value is not None else None
 
@@ -325,9 +328,12 @@ class DateTime(FieldType):
             error_context.add_error(CommonErrorCodes.INVALID_TYPE,
                 'Value %s is invalid for datetime. Value must be a string in ISO 8601 format (YYYY-MM-DDTHH:MM:SS.mmmmmm+HH:MM)' % value)
             return None
-        try:
-            dt = dateutil_parser.parse(unicode(value))
-        except ValueError:
+        if self.ISO_8601_RE.match(value):
+            try:
+                dt = dateutil_parser.parse(unicode(value))
+            except ValueError:
+                dt = None
+        else:
             dt = None
         if not dt or not dt.tzinfo:
             error_context.add_error(
