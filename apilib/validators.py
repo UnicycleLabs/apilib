@@ -34,7 +34,7 @@ class Readonly(Validator):
         return 'Value is read-only for methods: %s' % ','.join(self.method_matcher.methods())
 
     def validate(self, value, error_context, context):
-        if self.method_matcher.matches(context.method, context.service, context.operator):
+        if self.method_matcher.matches(context.service, context.method, context.operator):
             return None
         return value
 
