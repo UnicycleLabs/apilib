@@ -36,29 +36,29 @@ class ExtraAssertionsMixin(object):
         self.fail('Error with code %s and path %s not found' % (error_code, path))
 
 
-class ValidationTest(unittest.TestCase, ExtraAssertionsMixin):
+class SimpleValidationTest(unittest.TestCase, ExtraAssertionsMixin):
     def test_simple_valid(self):
         ec = apilib.ErrorContext()
-        m = SimpleValidationModel.from_json(None, error_context=ec)
+        m = SimpleValidationModel.from_json(None, ec, apilib.ValidationContext())
         self.assertIsNotNone(m)
         self.assertEqual(None, m.fstring)
         self.assertFalse(ec.has_errors())
 
         ec = apilib.ErrorContext()
-        m = SimpleValidationModel.from_json({'fstring': None}, error_context=ec)
+        m = SimpleValidationModel.from_json({'fstring': None}, ec, apilib.ValidationContext())
         self.assertIsNotNone(m)
         self.assertEqual(None, m.fstring)
         self.assertFalse(ec.has_errors())
 
         ec = apilib.ErrorContext()
-        m = SimpleValidationModel.from_json({'fstring': 'foo'}, error_context=ec)
+        m = SimpleValidationModel.from_json({'fstring': 'foo'}, ec, apilib.ValidationContext())
         self.assertIsNotNone(m)
         self.assertEqual('foo', m.fstring)
         self.assertFalse(ec.has_errors())
 
     def test_simple_invalid(self):
         ec = apilib.ErrorContext()
-        m = SimpleValidationModel.from_json({'fstring': 'EvIL'}, error_context=ec)
+        m = SimpleValidationModel.from_json({'fstring': 'EvIL'}, ec, apilib.ValidationContext())
         self.assertIsNone(m)
         self.assertTrue(ec.has_errors())
         errors = ec.all_errors()
@@ -66,6 +66,13 @@ class ValidationTest(unittest.TestCase, ExtraAssertionsMixin):
         self.assertEqual('EVIL_VALUE',errors[0].code)
         self.assertEqual('fstring', errors[0].path)
         self.assertEqual('An evil value was found', errors[0].msg)
+
+    def test_no_validation_if_no_context(self):
+        ec = apilib.ErrorContext()
+        m = SimpleValidationModel.from_json({'fstring': 'EvIL'}, ec, )
+        self.assertIsNotNone(m)
+        self.assertEqual('EvIL', m.fstring)
+        self.assertFalse(ec.has_errors())
 
     def test_types_are_enforced(self):
         with self.assertRaises(apilib.DeserializationError) as e:
@@ -82,7 +89,6 @@ class ValidationTest(unittest.TestCase, ExtraAssertionsMixin):
         self.assertHasError(errors, apilib.CommonErrorCodes.INVALID_TYPE, 'fdecimal')
         self.assertHasError(errors, apilib.CommonErrorCodes.INVALID_TYPE, 'fenum')
         self.assertHasError(errors, apilib.CommonErrorCodes.INVALID_TYPE, 'fid')
-
 
 class DateTimeValidationTest(unittest.TestCase, ExtraAssertionsMixin):
     class Model(apilib.Model):

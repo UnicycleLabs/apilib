@@ -4,67 +4,37 @@ from .validation import CommonErrorCodes
 from .validation import MethodMatcher
 from .validation import Validator
 
-class TypeValidator(Validator):
-    types = ()
-
-    def validate(self, value, error_context, method=None):
-        if value is not None and type(value) not in self.types:
-            value_type_name = type(value).__name__
-            allowed_types = ' or '.join([t.__name__ for t in self.types])
-            error_context.add_error(
-                CommonErrorCodes.INVALID_TYPE,
-                'Unexpected type %s, expected %s' % (value_type_name, allowed_types))
-        return value
-
-class StringType(TypeValidator):
-    documentation = 'Value must be a string'
-    types = (str, unicode)
-
-class IntegerType(TypeValidator):
-    documentation = 'Value must be an integer or long'
-    types = (int, long)
-
-class BooleanType(TypeValidator):
-    documentation = 'Value must be a boolean'
-    types = (bool,)
-
-class FloatType(TypeValidator):
-    documentation = 'Value must be a float'
-    types = (float, int, long)
-
 class Required(Validator):
-    def __init__(self, methods=()):
-        self.methods = methods
-        self.method_matcher = MethodMatcher(methods)
+    def __init__(self, method_spec=True):
+        self.method_matcher = MethodMatcher(method_spec)
 
     def get_documentation(self):
-        if not self.methods:
+        if not self.method_matcher.for_all_methods():
             return 'Value is required'
-        return 'Value is required for methods: %s' % ','.join(self.methods)
+        return 'Value is required for methods: %s' % ','.join(self.method_matcher.methods())
 
     def validate(self, value, error_context, context):
         if value in (None, [], {}, ''):
-            if context and self.method_matcher.matches(context.method, context.service):
-                error_context.add_error(
-                    CommonErrorCodes.REQUIRED,
-                    'Field is required on method "%s"' % context.method)
-            elif not self.methods:
-                error_context.add_error(
-                    CommonErrorCodes.REQUIRED, 'Field is required')
+            if self.method_matcher.matches(context.service, context.method, context.operator):
+                if self.method_matcher.for_all_methods():
+                    msg = 'Field is required'
+                else:
+                    msg = 'Field is required on method "%s"' % context.method
+                error_context.add_error(CommonErrorCodes.REQUIRED, msg)
+                return None
         return value
 
 class Readonly(Validator):
-    def __init__(self, methods=()):
-        self.methods = methods
-        self.method_matcher = MethodMatcher(methods)
+    def __init__(self, method_spec=True):
+        self.method_matcher = MethodMatcher(method_spec)
 
     def get_documentation(self):
-        if not self.methods:
+        if not self.method_matcher.for_all_methods():
             return 'Value is read-only'
-        return 'Value is read-only for methods: %s' % ','.join(self.methods)
+        return 'Value is read-only for methods: %s' % ','.join(self.method_matcher.methods())
 
     def validate(self, value, error_context, context):
-        if not self.methods or (context and self.method_matcher.matches(context.method, context.service)):
+        if self.method_matcher.matches(context.method, context.service, context.operator):
             return None
         return value
 

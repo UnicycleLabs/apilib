@@ -13,6 +13,7 @@ except ImportError:
 
 from .validation import CommonErrorCodes
 from .validation import ErrorContext
+from . import validators as vals
 
 ID_ENCRYPTION_KEY = None  # Set this to encrypt ids
 ID_HASHER = None
@@ -103,11 +104,11 @@ class Model(object):
         return '\n'.join(parts)
 
 class Field(object):
-    def __init__(self, field_type, validators=()):
+    def __init__(self, field_type, validators=(), required=None, readonly=None):
         self._type = field_type
         # Will be populated when the model is instantiated
         self._name = None
-        self._validators = validators
+        self._validators = self._implicit_validators(required, readonly) + list(validators or [])
 
     def to_json(self, value):
         return self._type.to_json(value)
@@ -116,7 +117,9 @@ class Field(object):
         value = self._type.from_json(value, error_context, context=None)
         if error_context.has_errors():
             return None
-        return self._validate(value, error_context, context=None)
+        if context:
+            return self._validate(value, error_context, context=None)
+        return value
 
     def __get__(self, instance, type=None):
         if instance:
@@ -136,6 +139,14 @@ class Field(object):
             if error_context.has_errors():
                 return None
         return value
+
+    def _implicit_validators(self, required, readonly):
+        validators = []
+        if required:
+            validators.append(vals.Required(required))
+        if readonly:
+            validators.append(vals.Readonly(readonly))
+        return validators
 
 class FieldType(object):
     type_name = None
