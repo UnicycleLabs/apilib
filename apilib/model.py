@@ -58,15 +58,17 @@ class Model(object):
     @classmethod
     def from_json(cls, obj, error_context=None, context=None):
         cls._populate_fields()
+        if obj is None:
+            return None
+
         kwargs = {}
         is_root = not error_context
         error_context = error_context or ErrorContext()
-        for key, value in obj.iteritems() if obj is not None else []:
-            field = cls._field_name_to_field.get(key)
-            if field:
-                context = context.for_parent(obj) if context else None
-                kwargs[key] = field.from_json(value, error_context.extend(field=key), context)
-            else:
+        context = context.for_parent(obj) if context else None
+        for key, field in cls._field_name_to_field.iteritems():
+            kwargs[key] = field.from_json(obj.get(key), error_context.extend(field=key), context)
+        for key in obj.iterkeys():
+            if key not in cls._field_name_to_field:
                 error_context.extend(field=key).add_error(CommonErrorCodes.UNKNOWN_FIELD, 'Unknown field "%s"' % key)
         if error_context.has_errors():
             if is_root:
@@ -114,11 +116,11 @@ class Field(object):
         return self._type.to_json(value)
 
     def from_json(self, value, error_context, context=None):
-        value = self._type.from_json(value, error_context, context=None)
+        value = self._type.from_json(value, error_context, context)
         if error_context.has_errors():
             return None
         if context:
-            return self._validate(value, error_context, context=None)
+            return self._validate(value, error_context, context)
         return value
 
     def __get__(self, instance, type=None):

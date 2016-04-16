@@ -40,8 +40,7 @@ class SimpleValidationTest(unittest.TestCase, ExtraAssertionsMixin):
     def test_simple_valid(self):
         ec = apilib.ErrorContext()
         m = SimpleValidationModel.from_json(None, ec, apilib.ValidationContext())
-        self.assertIsNotNone(m)
-        self.assertEqual(None, m.fstring)
+        self.assertIsNone(m)
         self.assertFalse(ec.has_errors())
 
         ec = apilib.ErrorContext()
@@ -210,6 +209,210 @@ class ErrorFieldPathTest(unittest.TestCase, ExtraAssertionsMixin):
         self.assertHasError(errors, 'INVALID_TYPE', 'dchild["a"].lstring[0]')
         self.assertHasError(errors, 'INVALID_TYPE', 'dchild["a"].fint')
 
+class TestRequiredStringField(unittest.TestCase, ExtraAssertionsMixin):
+    class Model(apilib.Model):
+        fstring = apilib.Field(apilib.String(), required=True)
+
+    def run_test(self, obj, service=None, method=None, operator=None):
+        ec = apilib.ErrorContext()
+        vc = apilib.ValidationContext(service=service, method=method, operator=operator)
+        m = self.Model.from_json(obj, ec, vc)
+        return m, ec.all_errors()
+
+    def test_absent(self):
+        m, errors = self.run_test({})
+        self.assertIsNone(m)
+        self.assertEqual(1, len(errors))
+        self.assertHasError(errors, 'REQUIRED', 'fstring')
+
+        m, errors = self.run_test({}, method='insert')
+        self.assertIsNone(m)
+        self.assertEqual(1, len(errors))
+        self.assertHasError(errors, 'REQUIRED', 'fstring')
+
+        m, errors = self.run_test({}, method='update', operator='ADD')
+        self.assertIsNone(m)
+        self.assertEqual(1, len(errors))
+        self.assertHasError(errors, 'REQUIRED', 'fstring')
+
+        m, errors = self.run_test({}, service='service', method='update', operator='ADD')
+        self.assertIsNone(m)
+        self.assertEqual(1, len(errors))
+        self.assertHasError(errors, 'REQUIRED', 'fstring')
+
+        m, errors = self.run_test({'fstring': None})
+        self.assertIsNone(m)
+        self.assertEqual(1, len(errors))
+        self.assertHasError(errors, 'REQUIRED', 'fstring')
+
+        m, errors = self.run_test({'fstring': None}, method='insert')
+        self.assertIsNone(m)
+        self.assertEqual(1, len(errors))
+        self.assertHasError(errors, 'REQUIRED', 'fstring')
+
+        m, errors = self.run_test({'fstring': None}, method='update', operator='ADD')
+        self.assertIsNone(m)
+        self.assertEqual(1, len(errors))
+        self.assertHasError(errors, 'REQUIRED', 'fstring')
+
+        m, errors = self.run_test({'fstring': None}, service='service', method='update', operator='ADD')
+        self.assertIsNone(m)
+        self.assertEqual(1, len(errors))
+        self.assertHasError(errors, 'REQUIRED', 'fstring')
+
+        m, errors = self.run_test({'fstring': ''})
+        self.assertIsNone(m)
+        self.assertEqual(1, len(errors))
+        self.assertHasError(errors, 'REQUIRED', 'fstring')
+
+        m, errors = self.run_test({'fstring': ''}, method='insert')
+        self.assertIsNone(m)
+        self.assertEqual(1, len(errors))
+        self.assertHasError(errors, 'REQUIRED', 'fstring')
+
+        m, errors = self.run_test({'fstring': ''}, method='update', operator='ADD')
+        self.assertIsNone(m)
+        self.assertEqual(1, len(errors))
+        self.assertHasError(errors, 'REQUIRED', 'fstring')
+
+        m, errors = self.run_test({'fstring': ''}, service='service', method='update', operator='ADD')
+        self.assertIsNone(m)
+        self.assertEqual(1, len(errors))
+        self.assertHasError(errors, 'REQUIRED', 'fstring')
+
+    def test_present(self):
+        m, errors = self.run_test({'fstring': 'foo'})
+        self.assertIsNotNone(m)
+        self.assertEqual([], errors)
+
+        m, errors = self.run_test({'fstring': 'foo'}, method='insert')
+        self.assertIsNotNone(m)
+        self.assertEqual([], errors)
+
+        m, errors = self.run_test({'fstring': 'foo'}, method='update', operator='ADD')
+        self.assertIsNotNone(m)
+        self.assertEqual([], errors)
+
+        m, errors = self.run_test({'fstring': 'foo'}, service='service', method='update', operator='ADD')
+        self.assertIsNotNone(m)
+        self.assertEqual([], errors)
+
+
+class TestMethodSpecificRequiredStringField(unittest.TestCase, ExtraAssertionsMixin):
+    class Model(apilib.Model):
+        fstring = apilib.Field(apilib.String(), required=['update/SET', 'service.foo', 'bar'])
+
+    def run_test(self, obj, service=None, method=None, operator=None):
+        ec = apilib.ErrorContext()
+        vc = apilib.ValidationContext(service=service, method=method, operator=operator)
+        m = self.Model.from_json(obj, ec, vc)
+        return m, ec.all_errors()
+
+    def test_absent_and_invalid(self):
+        m, errors = self.run_test({}, method='update', operator='SET')
+        self.assertIsNone(m)
+        self.assertEqual(1, len(errors))
+        self.assertHasError(errors, 'REQUIRED', 'fstring')
+
+        m, errors = self.run_test({}, service='service', method='update', operator='SET')
+        self.assertIsNone(m)
+        self.assertEqual(1, len(errors))
+        self.assertHasError(errors, 'REQUIRED', 'fstring')
+
+        m, errors = self.run_test({}, service='service', method='foo')
+        self.assertIsNone(m)
+        self.assertEqual(1, len(errors))
+        self.assertHasError(errors, 'REQUIRED', 'fstring')
+
+        m, errors = self.run_test({}, service='service', method='foo', operator='SET')
+        self.assertIsNone(m)
+        self.assertEqual(1, len(errors))
+        self.assertHasError(errors, 'REQUIRED', 'fstring')
+
+        m, errors = self.run_test({}, method='bar')
+        self.assertIsNone(m)
+        self.assertEqual(1, len(errors))
+        self.assertHasError(errors, 'REQUIRED', 'fstring')
+
+        m, errors = self.run_test({}, method='bar', operator='SET')
+        self.assertIsNone(m)
+        self.assertEqual(1, len(errors))
+        self.assertHasError(errors, 'REQUIRED', 'fstring')
+
+        m, errors = self.run_test({}, service='service', method='bar', operator='SET')
+        self.assertIsNone(m)
+        self.assertEqual(1, len(errors))
+        self.assertHasError(errors, 'REQUIRED', 'fstring')
+
+    def test_absent_but_valid(self):
+        m, errors = self.run_test({'fstring': None})
+        self.assertIsNotNone(m)
+        self.assertEqual([], errors)
+
+        m, errors = self.run_test({'fstring': None}, method='update', operator='ADD')
+        self.assertIsNotNone(m)
+        self.assertEqual([], errors)
+
+        m, errors = self.run_test({'fstring': None}, method='insert', operator='SET')
+        self.assertIsNotNone(m)
+        self.assertEqual([], errors)
+
+        m, errors = self.run_test({'fstring': None}, method='foo')
+        self.assertIsNotNone(m)
+        self.assertEqual([], errors)
+
+        m, errors = self.run_test({'fstring': None}, service='service', method='blah')
+        self.assertIsNotNone(m)
+        self.assertEqual([], errors)
+
+    def test_present_and_valid(self):
+        m, errors = self.run_test({'fstring': 'foo'}, method='update', operator='SET')
+        self.assertIsNotNone(m)
+        self.assertEqual([], errors)
+
+        m, errors = self.run_test({'fstring': 'foo'}, service='service', method='update', operator='SET')
+        self.assertIsNotNone(m)
+        self.assertEqual([], errors)
+
+        m, errors = self.run_test({'fstring': 'foo'}, service='service', method='foo')
+        self.assertIsNotNone(m)
+        self.assertEqual([], errors)
+
+        m, errors = self.run_test({'fstring': 'foo'}, service='service', method='foo', operator='SET')
+        self.assertIsNotNone(m)
+        self.assertEqual([], errors)
+
+        m, errors = self.run_test({'fstring': 'foo'}, method='bar')
+        self.assertIsNotNone(m)
+        self.assertEqual([], errors)
+
+        m, errors = self.run_test({'fstring': 'foo'}, method='bar', operator='SET')
+        self.assertIsNotNone(m)
+        self.assertEqual([], errors)
+
+        m, errors = self.run_test({'fstring': 'foo'}, service='service', method='bar', operator='SET')
+        self.assertIsNotNone(m)
+        self.assertEqual([], errors)
+
+        m, errors = self.run_test({'fstring': 'foo'})
+        self.assertIsNotNone(m)
+        self.assertEqual([], errors)
+
+        m, errors = self.run_test({'fstring': 'foo'}, method='update', operator='ADD')
+        self.assertIsNotNone(m)
+        self.assertEqual([], errors)
+
+        m, errors = self.run_test({'fstring': 'foo'}, method='insert', operator='SET')
+        self.assertIsNotNone(m)
+        self.assertEqual([], errors)
+
+        m, errors = self.run_test({'fstring': 'foo'}, method='foo')
+        self.assertIsNotNone(m)
+        self.assertEqual([], errors)
+
+        m, errors = self.run_test({'fstring': 'foo'}, service='service', method='blah')
+        self.assertIsNotNone(m)
+        self.assertEqual([], errors)
 
 if __name__ == '__main__':
     unittest.main()
