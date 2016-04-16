@@ -17,6 +17,9 @@ class NotEvilValidator(apilib.Validator):
 class SimpleValidationModel(apilib.Model):
     fstring = apilib.Field(apilib.String(), validators=[NotEvilValidator()])
 
+class SimpleChild(apilib.Model):
+    fstring = apilib.Field(apilib.String())
+
 class AllBasicTypesModel(apilib.Model):
     fstring = apilib.Field(apilib.String())
     fint = apilib.Field(apilib.Integer())
@@ -467,7 +470,7 @@ class TestRequiredBoolField(unittest.TestCase, ExtraAssertionsMixin):
         self.assertEqual(1, len(errors))
         self.assertHasError(errors, 'REQUIRED', 'fbool')
 
-        m, errors = self.run_test({'fint': None})
+        m, errors = self.run_test({'fbool': None})
         self.assertIsNone(m)
         self.assertEqual(1, len(errors))
         self.assertHasError(errors, 'REQUIRED', 'fbool')
@@ -515,6 +518,153 @@ class TestRequiredListAndDictFields(unittest.TestCase, ExtraAssertionsMixin):
         m, errors = self.run_test({'lstring': ['a'], 'dstring': {'foo': 'bar'}})
         self.assertIsNotNone(m)
         self.assertEqual([], errors)
+
+class TestRequiredModelFields(unittest.TestCase, ExtraAssertionsMixin):
+    class Model(apilib.Model):
+        fchild = apilib.Field(apilib.ModelType(SimpleChild), required=True)
+        lchild = apilib.Field(apilib.ListType(SimpleChild), required=True)
+        dchild = apilib.Field(apilib.DictType(SimpleChild), required=True)
+
+    def run_test(self, obj, service=None, method=None, operator=None):
+        ec = apilib.ErrorContext()
+        vc = apilib.ValidationContext(service=service, method=method, operator=operator)
+        m = self.Model.from_json(obj, ec, vc)
+        return m, ec.all_errors()
+
+    def test_absent_and_invalid(self):
+        m, errors = self.run_test({})
+        self.assertIsNone(m)
+        self.assertEqual(3, len(errors))
+        self.assertHasError(errors, 'REQUIRED', 'fchild')
+        self.assertHasError(errors, 'REQUIRED', 'lchild')
+        self.assertHasError(errors, 'REQUIRED', 'dchild')
+
+        m, errors = self.run_test({'fchild': None, 'lchild': None, 'dchild': None})
+        self.assertIsNone(m)
+        self.assertEqual(3, len(errors))
+        self.assertHasError(errors, 'REQUIRED', 'fchild')
+        self.assertHasError(errors, 'REQUIRED', 'lchild')
+        self.assertHasError(errors, 'REQUIRED', 'dchild')
+
+        m, errors = self.run_test({'fchild': None, 'lchild': [], 'dchild': {}})
+        self.assertIsNone(m)
+        self.assertEqual(3, len(errors))
+        self.assertHasError(errors, 'REQUIRED', 'fchild')
+        self.assertHasError(errors, 'REQUIRED', 'lchild')
+        self.assertHasError(errors, 'REQUIRED', 'dchild')
+
+    def test_present_and_valid(self):
+        m, errors = self.run_test({'fchild': {}, 'lchild': [{}], 'dchild': {'foo': {}}})
+        self.assertIsNotNone(m)
+        self.assertEqual([], errors)
+
+class TestReadonlyScalarFields(unittest.TestCase, ExtraAssertionsMixin):
+    class Model(apilib.Model):
+        fstring = apilib.Field(apilib.String(), readonly=True)
+        fint = apilib.Field(apilib.Integer(), readonly=True)
+        ffloat = apilib.Field(apilib.Float(), readonly=True)
+        fbool = apilib.Field(apilib.Boolean(), readonly=True)
+
+    def run_test(self, obj, service=None, method=None, operator=None):
+        ec = apilib.ErrorContext()
+        vc = apilib.ValidationContext(service=service, method=method, operator=operator)
+        m = self.Model.from_json(obj, ec, vc)
+        return m, ec.all_errors()
+
+    def assertAllNone(self, m):
+        self.assertIsNotNone(m)
+        self.assertIsNone(m.fstring)
+        self.assertIsNone(m.fint)
+        self.assertIsNone(m.ffloat)
+        self.assertIsNone(m.fbool)
+
+    def test_absent(self):
+        m, errors = self.run_test({})
+        self.assertEqual([], errors)
+        self.assertAllNone(m)
+
+        m, errors = self.run_test({'fstring': None, 'fint': None, 'ffloat': None, 'fbool': None})
+        self.assertEqual([], errors)
+        self.assertAllNone(m)
+
+    def test_present_and_stripped(self):
+        m, errors = self.run_test({'fstring': 'foo', 'fint': 100, 'ffloat': 9.9, 'fbool': True})
+        self.assertEqual([], errors)
+        self.assertAllNone(m)
+
+        m, errors = self.run_test({'fstring': '', 'fint': 0, 'ffloat': 0.0, 'fbool': False})
+        self.assertEqual([], errors)
+        self.assertAllNone(m)
+
+class TestReadonlyListAndDictFields(unittest.TestCase, ExtraAssertionsMixin):
+    class Model(apilib.Model):
+        lstring = apilib.Field(apilib.ListType(apilib.String()), readonly=True)
+        dstring = apilib.Field(apilib.DictType(apilib.String()), readonly=True)
+
+    def run_test(self, obj, service=None, method=None, operator=None):
+        ec = apilib.ErrorContext()
+        vc = apilib.ValidationContext(service=service, method=method, operator=operator)
+        m = self.Model.from_json(obj, ec, vc)
+        return m, ec.all_errors()
+
+    def assertAllNone(self, m):
+        self.assertIsNotNone(m)
+        self.assertIsNone(m.lstring)
+        self.assertIsNone(m.dstring)
+
+    def test_absent(self):
+        m, errors = self.run_test({})
+        self.assertEqual([], errors)
+        self.assertAllNone(m)
+
+        m, errors = self.run_test({'lstring': None, 'dstring': None})
+        self.assertEqual([], errors)
+        self.assertAllNone(m)
+
+        m, errors = self.run_test({'lstring': [], 'dstring': {}})
+        self.assertEqual([], errors)
+        self.assertAllNone(m)
+
+    def test_present_and_stripped(self):
+        m, errors = self.run_test({'lstring': ['a'], 'dstring': {'foo': 'bar'}})
+        self.assertEqual([], errors)
+        self.assertAllNone(m)
+
+class TestReadonlyModelFields(unittest.TestCase, ExtraAssertionsMixin):
+    class Model(apilib.Model):
+        fchild = apilib.Field(apilib.ModelType(SimpleChild), readonly=True)
+        lchild = apilib.Field(apilib.ListType(SimpleChild), readonly=True)
+        dchild = apilib.Field(apilib.DictType(SimpleChild), readonly=True)
+
+    def run_test(self, obj, service=None, method=None, operator=None):
+        ec = apilib.ErrorContext()
+        vc = apilib.ValidationContext(service=service, method=method, operator=operator)
+        m = self.Model.from_json(obj, ec, vc)
+        return m, ec.all_errors()
+
+    def assertAllNone(self, m):
+        self.assertIsNotNone(m)
+        self.assertIsNone(m.fchild)
+        self.assertIsNone(m.lchild)
+        self.assertIsNone(m.dchild)
+
+    def test_absent(self):
+        m, errors = self.run_test({})
+        self.assertEqual([], errors)
+        self.assertAllNone(m)
+
+        m, errors = self.run_test({'fchild': None, 'lchild': None, 'dchild': None})
+        self.assertEqual([], errors)
+        self.assertAllNone(m)
+
+    def test_present_and_stripped(self):
+        m, errors = self.run_test({'fchild': {}, 'lchild': [], 'dchild': {}})
+        self.assertEqual([], errors)
+        self.assertAllNone(m)
+
+        m, errors = self.run_test({'fchild': {'fstring': 'a'}, 'lchild': [{'fstring': 'b'}], 'dchild': {'foo': {'fstring': 'c'}}})
+        self.assertEqual([], errors)
+        self.assertAllNone(m)
 
 
 if __name__ == '__main__':
