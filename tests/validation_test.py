@@ -414,5 +414,108 @@ class TestMethodSpecificRequiredStringField(unittest.TestCase, ExtraAssertionsMi
         self.assertIsNotNone(m)
         self.assertEqual([], errors)
 
+class TestRequiredNumericFields(unittest.TestCase, ExtraAssertionsMixin):
+    class Model(apilib.Model):
+        fint = apilib.Field(apilib.Integer(), required=True)
+        ffloat = apilib.Field(apilib.Float(), required=True)
+
+    def run_test(self, obj, service=None, method=None, operator=None):
+        ec = apilib.ErrorContext()
+        vc = apilib.ValidationContext(service=service, method=method, operator=operator)
+        m = self.Model.from_json(obj, ec, vc)
+        return m, ec.all_errors()
+
+    def test_absent_and_invalid(self):
+        m, errors = self.run_test({})
+        self.assertIsNone(m)
+        self.assertEqual(2, len(errors))
+        self.assertHasError(errors, 'REQUIRED', 'fint')
+        self.assertHasError(errors, 'REQUIRED', 'ffloat')
+
+        m, errors = self.run_test({'fint': None, 'ffloat': None})
+        self.assertIsNone(m)
+        self.assertEqual(2, len(errors))
+        self.assertHasError(errors, 'REQUIRED', 'fint')
+        self.assertHasError(errors, 'REQUIRED', 'ffloat')
+
+    def test_present_and_valid(self):
+        m, errors = self.run_test({'fint': 0, 'ffloat': 0.0})
+        self.assertIsNotNone(m)
+        self.assertEqual([], errors)
+
+        m, errors = self.run_test({'fint': 0, 'ffloat': 0})
+        self.assertIsNotNone(m)
+        self.assertEqual([], errors)
+
+        m, errors = self.run_test({'fint': 10101, 'ffloat': -10.1})
+        self.assertIsNotNone(m)
+        self.assertEqual([], errors)
+
+class TestRequiredBoolField(unittest.TestCase, ExtraAssertionsMixin):
+    class Model(apilib.Model):
+        fbool = apilib.Field(apilib.Boolean(), required=True)
+
+    def run_test(self, obj, service=None, method=None, operator=None):
+        ec = apilib.ErrorContext()
+        vc = apilib.ValidationContext(service=service, method=method, operator=operator)
+        m = self.Model.from_json(obj, ec, vc)
+        return m, ec.all_errors()
+
+    def test_absent_and_invalid(self):
+        m, errors = self.run_test({})
+        self.assertIsNone(m)
+        self.assertEqual(1, len(errors))
+        self.assertHasError(errors, 'REQUIRED', 'fbool')
+
+        m, errors = self.run_test({'fint': None})
+        self.assertIsNone(m)
+        self.assertEqual(1, len(errors))
+        self.assertHasError(errors, 'REQUIRED', 'fbool')
+
+    def test_present_and_valid(self):
+        m, errors = self.run_test({'fbool': False})
+        self.assertIsNotNone(m)
+        self.assertEqual([], errors)
+
+        m, errors = self.run_test({'fbool': True})
+        self.assertIsNotNone(m)
+        self.assertEqual([], errors)
+
+class TestRequiredListAndDictFields(unittest.TestCase, ExtraAssertionsMixin):
+    class Model(apilib.Model):
+        lstring = apilib.Field(apilib.ListType(apilib.String()), required=True)
+        dstring = apilib.Field(apilib.DictType(apilib.String()), required=True)
+
+    def run_test(self, obj, service=None, method=None, operator=None):
+        ec = apilib.ErrorContext()
+        vc = apilib.ValidationContext(service=service, method=method, operator=operator)
+        m = self.Model.from_json(obj, ec, vc)
+        return m, ec.all_errors()
+
+    def test_absent_and_invalid(self):
+        m, errors = self.run_test({})
+        self.assertIsNone(m)
+        self.assertEqual(2, len(errors))
+        self.assertHasError(errors, 'REQUIRED', 'lstring')
+        self.assertHasError(errors, 'REQUIRED', 'dstring')
+
+        m, errors = self.run_test({'lstring': None, 'dstring': None})
+        self.assertIsNone(m)
+        self.assertEqual(2, len(errors))
+        self.assertHasError(errors, 'REQUIRED', 'lstring')
+        self.assertHasError(errors, 'REQUIRED', 'dstring')
+
+        m, errors = self.run_test({'lstring': [], 'dstring': {}})
+        self.assertIsNone(m)
+        self.assertEqual(2, len(errors))
+        self.assertHasError(errors, 'REQUIRED', 'lstring')
+        self.assertHasError(errors, 'REQUIRED', 'dstring')
+
+    def test_present_and_valid(self):
+        m, errors = self.run_test({'lstring': ['a'], 'dstring': {'foo': 'bar'}})
+        self.assertIsNotNone(m)
+        self.assertEqual([], errors)
+
+
 if __name__ == '__main__':
     unittest.main()
