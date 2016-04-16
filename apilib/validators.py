@@ -4,6 +4,9 @@ from .validation import CommonErrorCodes
 from .validation import MethodMatcher
 from .validation import Validator
 
+# Not all falsey values should be considered 'empty', i.e. 0, 0.0, and False
+EMPTY_VALUES = (None, [], {}, '')
+
 class Required(Validator):
     def __init__(self, method_spec=True):
         self.method_matcher = MethodMatcher(method_spec)
@@ -14,7 +17,7 @@ class Required(Validator):
         return 'Value is required for methods: %s' % ','.join(self.method_matcher.methods())
 
     def validate(self, value, error_context, context):
-        if value in (None, [], {}, ''):
+        if value in EMPTY_VALUES:
             if self.method_matcher.matches(context.service, context.method, context.operator):
                 if self.method_matcher.for_all_methods():
                     msg = 'Field is required'
@@ -43,24 +46,28 @@ class NonemptyElements(Validator):
 
     def validate(self, value, error_context, context):
         for i, item in enumerate(value or []):
-            if not item:
-                error_context.extend_path_for_index(i).add_error(
+            if item in EMPTY_VALUES:
+                error_context.extend(index=i).add_error(
                     CommonErrorCodes.NONEMPTY_ITEM_REQUIRED,
                     'Nonempty list elements are required')
+            if error_context.has_errors():
+                return None
         return value
 
+# Only works for lists of scalars
 class Unique(Validator):
     documentation = 'Unique values are required'
 
     def validate(self, value, error_context, context):
         items_seen = set()
         for i, item in enumerate(value or []):
-            if item:
-                if item in items_seen:
-                    error_context.extend_path_for_index(i).add_error(
-                        CommonErrorCodes.DUPLICATE_VALUE,
-                        'Duplicate value found: "%s"' % item)
-                items_seen.add(item)
+            if item in items_seen:
+                error_context.extend(index=i).add_error(
+                    CommonErrorCodes.DUPLICATE_VALUE,
+                    'Duplicate value found: "%s"' % item)
+            items_seen.add(item)
+        if error_context.has_errors():
+            return None
         return value
 
 class UniqueFields(Validator):
