@@ -237,6 +237,108 @@ class ValidatorsTest(unittest.TestCase):
         self.assertEqual(apilib.CommonErrorCodes.DUPLICATE_VALUE, errors[0].code)
         self.assertEqual('fstring[3]', errors[0].path)
 
+        value = Unique().validate([2, 1, 2], apilib.ErrorContext(), None)
+        self.assertIsNone(value)
+
+    def test_unique_fields_validator(self):
+        UniqueFields = apilib.UniqueFields
+
+        self.run_validator_test_for_context(UniqueFields('id'), None, None)
+        self.run_validator_test_for_context(UniqueFields('id'), [], None)
+        self.run_validator_test_for_context(UniqueFields('id'), [{}], None)
+        self.run_validator_test_for_context(UniqueFields('id'), [{}, {}], None)
+        self.run_validator_test_for_context(UniqueFields('id'), [{'id': None}], None)
+        self.run_validator_test_for_context(UniqueFields('id'), [{'id': None}, {}], None)
+        self.run_validator_test_for_context(UniqueFields('id'), [{'id': 1}, {}], None)
+        self.run_validator_test_for_context(UniqueFields('id'), [{'id': 1}, {'id': None}], None)
+        self.run_validator_test_for_context(UniqueFields('id'), [{'id': 1}, {'id': 2}], None)
+        self.run_validator_test_for_context(UniqueFields('id'), [{'id': 1}, {}, {'id': 3}], None)
+
+        errors = self.validate(UniqueFields('id'), [{'id': 1}, {'id': 1}], apilib.ErrorContext().extend(field='lfoo'))
+        self.assertEqual(1, len(errors))
+        self.assertEqual(apilib.CommonErrorCodes.DUPLICATE_VALUE, errors[0].code)
+        self.assertEqual('lfoo[1].id', errors[0].path)
+
+        errors = self.validate(UniqueFields('id'), [{'id': 1}, {'id': 1}, None, {'id': 1}], apilib.ErrorContext().extend(field='lfoo'))
+        self.assertEqual(2, len(errors))
+        self.assertEqual(apilib.CommonErrorCodes.DUPLICATE_VALUE, errors[0].code)
+        self.assertEqual('lfoo[1].id', errors[0].path)
+        self.assertEqual(apilib.CommonErrorCodes.DUPLICATE_VALUE, errors[1].code)
+        self.assertEqual('lfoo[3].id', errors[1].path)
+
+        errors = self.validate(UniqueFields('id'), [{'id': None}, {'id': None}], apilib.ErrorContext().extend(field='lfoo'))
+        self.assertEqual(1, len(errors))
+        self.assertEqual(apilib.CommonErrorCodes.DUPLICATE_VALUE, errors[0].code)
+        self.assertEqual('lfoo[1].id', errors[0].path)
+
+        errors = self.validate(UniqueFields('foo'), [{'foo': 'a'}, {'foo': 'a'}], apilib.ErrorContext().extend(field='lfoo'))
+        self.assertEqual(1, len(errors))
+        self.assertEqual(apilib.CommonErrorCodes.DUPLICATE_VALUE, errors[0].code)
+        self.assertEqual('lfoo[1].foo', errors[0].path)
+
+        value = UniqueFields('id').validate([{'id': 1}, {'id': 1}],  apilib.ErrorContext(), None)
+        self.assertIsNone(value)
+
+    def test_range_validator(self):
+        Range = apilib.Range
+        VALUE_NOT_IN_RANGE = apilib.CommonErrorCodes.VALUE_NOT_IN_RANGE
+
+        self.run_validator_test_for_context(Range(min_=1), 1, None)
+        self.run_validator_test_for_context(Range(min_=1), 2, None)
+        self.run_validator_test_for_context(Range(min_=1), 1.1, None)
+        self.run_validator_test_for_context(Range(min_=1), 1e6, None)
+        self.run_validator_test_for_context(Range(min_=-0.5), -0.1, None)
+        self.run_validator_test_for_context(Range(min_=1, max_=3), 1, None)
+        self.run_validator_test_for_context(Range(min_=1, max_=3), 2, None)
+        self.run_validator_test_for_context(Range(min_=1, max_=3), 2.9, None)
+        self.run_validator_test_for_context(Range(min_=1, max_=3), 3, None)
+        self.run_validator_test_for_context(Range(max_=3), 1, None)
+        self.run_validator_test_for_context(Range(max_=3), 2, None)
+        self.run_validator_test_for_context(Range(max_=3), 2.9, None)
+        self.run_validator_test_for_context(Range(max_=3), 3, None)
+        self.run_validator_test_for_context(Range(max_=-1), -2, None)
+        self.run_validator_test_for_context(Range(min_='a'), 'b', None)
+        self.run_validator_test_for_context(Range(min_='a', max_='c'), 'b', None)
+
+        self.run_validator_test_for_context(Range(min_=1), 0, None, VALUE_NOT_IN_RANGE)
+        self.run_validator_test_for_context(Range(min_=1), 0.9, None, VALUE_NOT_IN_RANGE)
+        self.run_validator_test_for_context(Range(min_=1), -1, None, VALUE_NOT_IN_RANGE)
+        self.run_validator_test_for_context(Range(min_=1), -1e6, None, VALUE_NOT_IN_RANGE)
+        self.run_validator_test_for_context(Range(min_=-5), -10.5, None, VALUE_NOT_IN_RANGE)
+        self.run_validator_test_for_context(Range(min_=-5), -5.0000001, None, VALUE_NOT_IN_RANGE)
+        self.run_validator_test_for_context(Range(min_=1, max_=3), 0.9, None, VALUE_NOT_IN_RANGE)
+        self.run_validator_test_for_context(Range(min_=1, max_=3), 3.1, None, VALUE_NOT_IN_RANGE)
+        self.run_validator_test_for_context(Range(min_=1, max_=3), -10, None, VALUE_NOT_IN_RANGE)
+        self.run_validator_test_for_context(Range(min_=1, max_=3), 0, None, VALUE_NOT_IN_RANGE)
+        self.run_validator_test_for_context(Range(max_=3), 3.1, None, VALUE_NOT_IN_RANGE)
+        self.run_validator_test_for_context(Range(max_=3), 4, None, VALUE_NOT_IN_RANGE)
+        self.run_validator_test_for_context(Range(max_=3), 9e5, None, VALUE_NOT_IN_RANGE)
+        self.run_validator_test_for_context(Range(min_='a', max_='c'), 'd', None, VALUE_NOT_IN_RANGE)
+
+        ec = apilib.ErrorContext().extend(field='foo')
+        value = Range(min_=1).validate(0, ec, None)
+        self.assertIsNone(value)
+
+        errors = self.validate(Range(min_=1), 0, apilib.ErrorContext().extend(field='foo'))
+        self.assertEqual(1, len(errors))
+        self.assertEqual('foo', errors[0].path)
+        self.assertEqual('Value 0 is less than 1', errors[0].msg)
+
+        errors = self.validate(Range(max_=10), 15.5, apilib.ErrorContext().extend(field='foo'))
+        self.assertEqual(1, len(errors))
+        self.assertEqual('foo', errors[0].path)
+        self.assertEqual('Value 15.5 is greater than 10', errors[0].msg)
+
+        errors = self.validate(Range(min_=5, max_=10), 4, apilib.ErrorContext().extend(field='foo'))
+        self.assertEqual(1, len(errors))
+        self.assertEqual('foo', errors[0].path)
+        self.assertEqual('Value 4 is less than 5', errors[0].msg)
+
+        errors = self.validate(Range(min_=5, max_=10), 11, apilib.ErrorContext().extend(field='foo'))
+        self.assertEqual(1, len(errors))
+        self.assertEqual('foo', errors[0].path)
+        self.assertEqual('Value 11 is greater than 10', errors[0].msg)
+
 
 if __name__ == '__main__':
     unittest.main()

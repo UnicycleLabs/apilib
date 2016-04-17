@@ -70,6 +70,10 @@ class Unique(Validator):
             return None
         return value
 
+# Only works with lists of objects, e.g.
+# UniqueFields('id')
+# [{'id': 1}, {'id': 2}]
+# to ensure each object has a unique id.
 class UniqueFields(Validator):
     def __init__(self, field_name):
         self.field_name = field_name
@@ -80,13 +84,15 @@ class UniqueFields(Validator):
     def validate(self, value, error_context, context):
         item_values_seen = set()
         for i, item in enumerate(value or []):
-            if item:
-                item_value = getattr(item, self.field_name, None)
-                if item_value and item_value in item_values_seen:
-                    error_context.extend_path_for_index(i).extend_path_for_field(self.field_name) \
+            if item and self.field_name in item:
+                item_value = item[self.field_name]
+                if item_value in item_values_seen:
+                    error_context.extend(index=i).extend(field=self.field_name) \
                         .add_error(CommonErrorCodes.DUPLICATE_VALUE,
                             'Duplicate value found: "%s"' % item_value)
                 item_values_seen.add(item_value)
+        if error_context.has_errors():
+            return None
         return value
 
 class Range(Validator):
@@ -109,8 +115,10 @@ class Range(Validator):
             return value
         if self.min is not None and value < self.min:
             error_context.add_error(CommonErrorCodes.VALUE_NOT_IN_RANGE, 'Value %s is less than %s' % (value, self.min))
+            return None
         if self.max is not None and value > self.max:
-            error_context.add_error(CommonErrorCodes.VALUE_NOT_IN_RANGE, 'Value %s is great than %s' % (value, self.max))
+            error_context.add_error(CommonErrorCodes.VALUE_NOT_IN_RANGE, 'Value %s is greater than %s' % (value, self.max))
+            return None
         return value
 
 class ExactlyOneNonempty(Validator):
