@@ -3,6 +3,7 @@ import unittest
 
 import apilib
 
+EC = apilib.ErrorContext
 VC = apilib.ValidationContext
 
 class ValidatorsTest(unittest.TestCase):
@@ -25,8 +26,8 @@ class ValidatorsTest(unittest.TestCase):
             self.assertFalse(errors)
         return errors
 
-    def validate(self, validator, value, error_context):
-        validator.validate(value, error_context, None)
+    def validate(self, validator, value, error_context, context=None):
+        validator.validate(value, error_context, context)
         return error_context.all_errors()
 
     def assertHasErrorCode(self, error_code, errors):
@@ -36,78 +37,81 @@ class ValidatorsTest(unittest.TestCase):
         self.fail('Error code %s not found' % error_code)
 
     def test_required_validator(self):
-        self.run_validator_test(apilib.Required(), None, apilib.CommonErrorCodes.REQUIRED)
-        self.run_validator_test(apilib.Required(), '', apilib.CommonErrorCodes.REQUIRED)
-        self.run_validator_test(apilib.Required(), u'', apilib.CommonErrorCodes.REQUIRED)
-        self.run_validator_test(apilib.Required(), [], apilib.CommonErrorCodes.REQUIRED)
-        self.run_validator_test(apilib.Required(), {}, apilib.CommonErrorCodes.REQUIRED)
-        self.run_validator_test(apilib.Required(), 'abc')
-        self.run_validator_test(apilib.Required(), 123)
-        self.run_validator_test(apilib.Required(), 0)
-        self.run_validator_test(apilib.Required(), 0.0)
-        self.run_validator_test(apilib.Required(), u'abc')
-        self.run_validator_test(apilib.Required(), ['abc'])
-        self.run_validator_test(apilib.Required(), [1, 2, 3])
-        self.run_validator_test(apilib.Required(), [None])
+        Required = apilib.Required
+        REQUIRED = apilib.CommonErrorCodes.REQUIRED
 
-        self.run_validator_test(apilib.Required(True), None, apilib.CommonErrorCodes.REQUIRED)
-        self.run_validator_test(apilib.Required(True), '', apilib.CommonErrorCodes.REQUIRED)
-        self.run_validator_test(apilib.Required(True), u'', apilib.CommonErrorCodes.REQUIRED)
-        self.run_validator_test(apilib.Required(True), [], apilib.CommonErrorCodes.REQUIRED)
-        self.run_validator_test(apilib.Required(True), {}, apilib.CommonErrorCodes.REQUIRED)
-        self.run_validator_test(apilib.Required(True), 'abc')
-        self.run_validator_test(apilib.Required(True), 123)
-        self.run_validator_test(apilib.Required(True), 0)
-        self.run_validator_test(apilib.Required(True), 0.0)
-        self.run_validator_test(apilib.Required(True), u'abc')
-        self.run_validator_test(apilib.Required(True), ['abc'])
-        self.run_validator_test(apilib.Required(True), [1, 2, 3])
-        self.run_validator_test(apilib.Required(True), [None])
+        self.run_validator_test(Required(), None, REQUIRED)
+        self.run_validator_test(Required(), '', REQUIRED)
+        self.run_validator_test(Required(), u'', REQUIRED)
+        self.run_validator_test(Required(), [], REQUIRED)
+        self.run_validator_test(Required(), {}, REQUIRED)
+        self.run_validator_test(Required(), 'abc')
+        self.run_validator_test(Required(), 123)
+        self.run_validator_test(Required(), 0)
+        self.run_validator_test(Required(), 0.0)
+        self.run_validator_test(Required(), u'abc')
+        self.run_validator_test(Required(), ['abc'])
+        self.run_validator_test(Required(), [1, 2, 3])
+        self.run_validator_test(Required(), [None])
 
-        self.run_validator_test_for_method(apilib.Required(['insert']), None, 'insert', apilib.CommonErrorCodes.REQUIRED)
-        self.run_validator_test_for_method(apilib.Required(['insert']), '', 'insert', apilib.CommonErrorCodes.REQUIRED)
-        self.run_validator_test_for_method(apilib.Required(['insert']), [], 'insert', apilib.CommonErrorCodes.REQUIRED)
-        self.run_validator_test_for_method(apilib.Required(['insert']), {}, 'insert', apilib.CommonErrorCodes.REQUIRED)
-        self.run_validator_test_for_method(apilib.Required(['insert']), None, 'update')
-        self.run_validator_test_for_method(apilib.Required(['insert']), [], 'update')
-        self.run_validator_test_for_method(apilib.Required(['insert']), {}, 'update')
-        self.run_validator_test_for_method(apilib.Required(['insert']), 123, 'insert')
-        self.run_validator_test_for_method(apilib.Required(['insert']), 'abc', 'insert')
-        self.run_validator_test_for_method(apilib.Required(['insert']), [1], 'insert')
+        self.run_validator_test(Required(True), None, REQUIRED)
+        self.run_validator_test(Required(True), '', REQUIRED)
+        self.run_validator_test(Required(True), u'', REQUIRED)
+        self.run_validator_test(Required(True), [], REQUIRED)
+        self.run_validator_test(Required(True), {}, REQUIRED)
+        self.run_validator_test(Required(True), 'abc')
+        self.run_validator_test(Required(True), 123)
+        self.run_validator_test(Required(True), 0)
+        self.run_validator_test(Required(True), 0.0)
+        self.run_validator_test(Required(True), u'abc')
+        self.run_validator_test(Required(True), ['abc'])
+        self.run_validator_test(Required(True), [1, 2, 3])
+        self.run_validator_test(Required(True), [None])
 
-        self.run_validator_test_for_method(apilib.Required(['get', 'insert']), None, 'insert', apilib.CommonErrorCodes.REQUIRED)
-        self.run_validator_test_for_method(apilib.Required(['get', 'insert']), '', 'insert', apilib.CommonErrorCodes.REQUIRED)
-        self.run_validator_test_for_method(apilib.Required(['get', 'insert']), [], 'insert', apilib.CommonErrorCodes.REQUIRED)
-        self.run_validator_test_for_method(apilib.Required(['get', 'insert']), {}, 'insert', apilib.CommonErrorCodes.REQUIRED)
-        self.run_validator_test_for_method(apilib.Required(['get', 'insert']), None, 'update')
-        self.run_validator_test_for_method(apilib.Required(['get', 'insert']), [], 'update')
-        self.run_validator_test_for_method(apilib.Required(['get', 'insert']), {}, 'update')
-        self.run_validator_test_for_method(apilib.Required(['get', 'insert']), 123, 'insert')
-        self.run_validator_test_for_method(apilib.Required(['get', 'insert']), 'abc', 'insert')
-        self.run_validator_test_for_method(apilib.Required(['get', 'insert']), [1], 'insert')
+        self.run_validator_test_for_method(Required(['insert']), None, 'insert', REQUIRED)
+        self.run_validator_test_for_method(Required(['insert']), '', 'insert', REQUIRED)
+        self.run_validator_test_for_method(Required(['insert']), [], 'insert', REQUIRED)
+        self.run_validator_test_for_method(Required(['insert']), {}, 'insert', REQUIRED)
+        self.run_validator_test_for_method(Required(['insert']), None, 'update')
+        self.run_validator_test_for_method(Required(['insert']), [], 'update')
+        self.run_validator_test_for_method(Required(['insert']), {}, 'update')
+        self.run_validator_test_for_method(Required(['insert']), 123, 'insert')
+        self.run_validator_test_for_method(Required(['insert']), 'abc', 'insert')
+        self.run_validator_test_for_method(Required(['insert']), [1], 'insert')
 
-        self.run_validator_test_for_method(apilib.Required('insert'), None, 'insert', apilib.CommonErrorCodes.REQUIRED)
-        self.run_validator_test_for_method(apilib.Required('insert'), '', 'insert', apilib.CommonErrorCodes.REQUIRED)
-        self.run_validator_test_for_method(apilib.Required('insert'), [], 'insert', apilib.CommonErrorCodes.REQUIRED)
-        self.run_validator_test_for_method(apilib.Required('insert'), {}, 'insert', apilib.CommonErrorCodes.REQUIRED)
-        self.run_validator_test_for_method(apilib.Required('insert'), None, 'update')
-        self.run_validator_test_for_method(apilib.Required('insert'), [], 'update')
-        self.run_validator_test_for_method(apilib.Required('insert'), {}, 'update')
-        self.run_validator_test_for_method(apilib.Required('insert'), 123, 'insert')
-        self.run_validator_test_for_method(apilib.Required('insert'), 'abc', 'insert')
-        self.run_validator_test_for_method(apilib.Required('insert'), [1], 'insert')
+        self.run_validator_test_for_method(Required(['get', 'insert']), None, 'insert', REQUIRED)
+        self.run_validator_test_for_method(Required(['get', 'insert']), '', 'insert', REQUIRED)
+        self.run_validator_test_for_method(Required(['get', 'insert']), [], 'insert', REQUIRED)
+        self.run_validator_test_for_method(Required(['get', 'insert']), {}, 'insert', REQUIRED)
+        self.run_validator_test_for_method(Required(['get', 'insert']), None, 'update')
+        self.run_validator_test_for_method(Required(['get', 'insert']), [], 'update')
+        self.run_validator_test_for_method(Required(['get', 'insert']), {}, 'update')
+        self.run_validator_test_for_method(Required(['get', 'insert']), 123, 'insert')
+        self.run_validator_test_for_method(Required(['get', 'insert']), 'abc', 'insert')
+        self.run_validator_test_for_method(Required(['get', 'insert']), [1], 'insert')
+
+        self.run_validator_test_for_method(Required('insert'), None, 'insert', REQUIRED)
+        self.run_validator_test_for_method(Required('insert'), '', 'insert', REQUIRED)
+        self.run_validator_test_for_method(Required('insert'), [], 'insert', REQUIRED)
+        self.run_validator_test_for_method(Required('insert'), {}, 'insert', REQUIRED)
+        self.run_validator_test_for_method(Required('insert'), None, 'update')
+        self.run_validator_test_for_method(Required('insert'), [], 'update')
+        self.run_validator_test_for_method(Required('insert'), {}, 'update')
+        self.run_validator_test_for_method(Required('insert'), 123, 'insert')
+        self.run_validator_test_for_method(Required('insert'), 'abc', 'insert')
+        self.run_validator_test_for_method(Required('insert'), [1], 'insert')
 
         VC = apilib.ValidationContext
-        self.run_validator_test_for_context(apilib.Required('insert/ADD'), None, VC(method='insert', operator='ADD'), apilib.CommonErrorCodes.REQUIRED)
-        self.run_validator_test_for_context(apilib.Required('insert/ADD'), None, VC(method='insert', operator='UPDATE'))
-        self.run_validator_test_for_context(apilib.Required('insert/ADD'), None, VC(method='insert', operator=None))
-        self.run_validator_test_for_context(apilib.Required('fooservice.insert/ADD'), None, VC(service='fooservice', method='insert', operator='ADD'), apilib.CommonErrorCodes.REQUIRED)
-        self.run_validator_test_for_context(apilib.Required('fooservice.insert/ADD'), None, VC(service=None, method='insert', operator='ADD'))
-        self.run_validator_test_for_context(apilib.Required('fooservice.insert'), None, VC(service='fooservice', method='insert', operator='ADD'), apilib.CommonErrorCodes.REQUIRED)
-        self.run_validator_test_for_context(apilib.Required('fooservice.insert'), None, VC(service='fooservice', method='insert'), apilib.CommonErrorCodes.REQUIRED)
+        self.run_validator_test_for_context(Required('insert/ADD'), None, VC(method='insert', operator='ADD'), REQUIRED)
+        self.run_validator_test_for_context(Required('insert/ADD'), None, VC(method='insert', operator='UPDATE'))
+        self.run_validator_test_for_context(Required('insert/ADD'), None, VC(method='insert', operator=None))
+        self.run_validator_test_for_context(Required('fooservice.insert/ADD'), None, VC(service='fooservice', method='insert', operator='ADD'), REQUIRED)
+        self.run_validator_test_for_context(Required('fooservice.insert/ADD'), None, VC(service=None, method='insert', operator='ADD'))
+        self.run_validator_test_for_context(Required('fooservice.insert'), None, VC(service='fooservice', method='insert', operator='ADD'), REQUIRED)
+        self.run_validator_test_for_context(Required('fooservice.insert'), None, VC(service='fooservice', method='insert'), REQUIRED)
 
         ec = apilib.ErrorContext().extend(field='fstring')
-        apilib.Required().validate(None, ec, VC())
+        Required().validate(None, ec, VC())
         self.assertEqual(1, len(ec.all_errors()))
         self.assertEqual('fstring', ec.all_errors()[0].path)
 
@@ -161,6 +165,7 @@ class ValidatorsTest(unittest.TestCase):
 
     def test_nonempty_elements_validator(self):
         NonemptyElements = apilib.NonemptyElements
+        NONEMPTY_ITEM_REQUIRED = apilib.CommonErrorCodes.NONEMPTY_ITEM_REQUIRED
 
         self.run_validator_test_for_context(NonemptyElements(), None, None)
         self.run_validator_test_for_context(NonemptyElements(), [], None)
@@ -171,12 +176,12 @@ class ValidatorsTest(unittest.TestCase):
         self.run_validator_test_for_context(NonemptyElements(), [[None]], None)
         self.run_validator_test_for_context(NonemptyElements(), [{'a': None}], None)
 
-        self.run_validator_test_for_context(NonemptyElements(), [None], None, apilib.CommonErrorCodes.NONEMPTY_ITEM_REQUIRED)
-        self.run_validator_test_for_context(NonemptyElements(), [[]], None, apilib.CommonErrorCodes.NONEMPTY_ITEM_REQUIRED)
-        self.run_validator_test_for_context(NonemptyElements(), [{}], None, apilib.CommonErrorCodes.NONEMPTY_ITEM_REQUIRED)
-        self.run_validator_test_for_context(NonemptyElements(), [1, 2, 3, None], None, apilib.CommonErrorCodes.NONEMPTY_ITEM_REQUIRED)
-        self.run_validator_test_for_context(NonemptyElements(), [1, 2, 3, []], None, apilib.CommonErrorCodes.NONEMPTY_ITEM_REQUIRED)
-        self.run_validator_test_for_context(NonemptyElements(), [1, 2, 3, {}], None, apilib.CommonErrorCodes.NONEMPTY_ITEM_REQUIRED)
+        self.run_validator_test_for_context(NonemptyElements(), [None], None, NONEMPTY_ITEM_REQUIRED)
+        self.run_validator_test_for_context(NonemptyElements(), [[]], None, NONEMPTY_ITEM_REQUIRED)
+        self.run_validator_test_for_context(NonemptyElements(), [{}], None, NONEMPTY_ITEM_REQUIRED)
+        self.run_validator_test_for_context(NonemptyElements(), [1, 2, 3, None], None, NONEMPTY_ITEM_REQUIRED)
+        self.run_validator_test_for_context(NonemptyElements(), [1, 2, 3, []], None, NONEMPTY_ITEM_REQUIRED)
+        self.run_validator_test_for_context(NonemptyElements(), [1, 2, 3, {}], None, NONEMPTY_ITEM_REQUIRED)
 
         ec = apilib.ErrorContext().extend(field='lint')
         value = NonemptyElements().validate([1, None], ec, None)
@@ -192,6 +197,7 @@ class ValidatorsTest(unittest.TestCase):
 
     def test_unique_validator(self):
         Unique = apilib.Unique
+        DUPLICATE_VALUE = apilib.CommonErrorCodes.DUPLICATE_VALUE
 
         self.run_validator_test_for_context(Unique(), None, None)
         self.run_validator_test_for_context(Unique(), [], None)
@@ -208,33 +214,33 @@ class ValidatorsTest(unittest.TestCase):
 
         errors = self.validate(Unique(), [2, 1, 2], apilib.ErrorContext().extend(field='fint'))
         self.assertEqual(1, len(errors))
-        self.assertEqual(apilib.CommonErrorCodes.DUPLICATE_VALUE, errors[0].code)
+        self.assertEqual(DUPLICATE_VALUE, errors[0].code)
         self.assertEqual('fint[2]', errors[0].path)
 
         errors = self.validate(Unique(), [9, 8, 7, 6, 7, 8, 9], apilib.ErrorContext().extend(field='fint'))
         self.assertEqual(3, len(errors))
-        self.assertEqual(apilib.CommonErrorCodes.DUPLICATE_VALUE, errors[0].code)
+        self.assertEqual(DUPLICATE_VALUE, errors[0].code)
         self.assertEqual('fint[4]', errors[0].path)
-        self.assertEqual(apilib.CommonErrorCodes.DUPLICATE_VALUE, errors[1].code)
+        self.assertEqual(DUPLICATE_VALUE, errors[1].code)
         self.assertEqual('fint[5]', errors[1].path)
-        self.assertEqual(apilib.CommonErrorCodes.DUPLICATE_VALUE, errors[2].code)
+        self.assertEqual(DUPLICATE_VALUE, errors[2].code)
         self.assertEqual('fint[6]', errors[2].path)
 
         errors = self.validate(Unique(), ['a', 'a', 'b', 'a'], apilib.ErrorContext().extend(field='fstring'))
         self.assertEqual(2, len(errors))
-        self.assertEqual(apilib.CommonErrorCodes.DUPLICATE_VALUE, errors[0].code)
+        self.assertEqual(DUPLICATE_VALUE, errors[0].code)
         self.assertEqual('fstring[1]', errors[0].path)
-        self.assertEqual(apilib.CommonErrorCodes.DUPLICATE_VALUE, errors[1].code)
+        self.assertEqual(DUPLICATE_VALUE, errors[1].code)
         self.assertEqual('fstring[3]', errors[1].path)
 
         errors = self.validate(Unique(), ['foo', 'a', '', ''], apilib.ErrorContext().extend(field='fstring'))
         self.assertEqual(1, len(errors))
-        self.assertEqual(apilib.CommonErrorCodes.DUPLICATE_VALUE, errors[0].code)
+        self.assertEqual(DUPLICATE_VALUE, errors[0].code)
         self.assertEqual('fstring[3]', errors[0].path)
 
         errors = self.validate(Unique(), ['foo', 'a', None, None], apilib.ErrorContext().extend(field='fstring'))
         self.assertEqual(1, len(errors))
-        self.assertEqual(apilib.CommonErrorCodes.DUPLICATE_VALUE, errors[0].code)
+        self.assertEqual(DUPLICATE_VALUE, errors[0].code)
         self.assertEqual('fstring[3]', errors[0].path)
 
         value = Unique().validate([2, 1, 2], apilib.ErrorContext(), None)
@@ -242,6 +248,7 @@ class ValidatorsTest(unittest.TestCase):
 
     def test_unique_fields_validator(self):
         UniqueFields = apilib.UniqueFields
+        DUPLICATE_VALUE = apilib.CommonErrorCodes.DUPLICATE_VALUE
 
         self.run_validator_test_for_context(UniqueFields('id'), None, None)
         self.run_validator_test_for_context(UniqueFields('id'), [], None)
@@ -256,24 +263,24 @@ class ValidatorsTest(unittest.TestCase):
 
         errors = self.validate(UniqueFields('id'), [{'id': 1}, {'id': 1}], apilib.ErrorContext().extend(field='lfoo'))
         self.assertEqual(1, len(errors))
-        self.assertEqual(apilib.CommonErrorCodes.DUPLICATE_VALUE, errors[0].code)
+        self.assertEqual(DUPLICATE_VALUE, errors[0].code)
         self.assertEqual('lfoo[1].id', errors[0].path)
 
         errors = self.validate(UniqueFields('id'), [{'id': 1}, {'id': 1}, None, {'id': 1}], apilib.ErrorContext().extend(field='lfoo'))
         self.assertEqual(2, len(errors))
-        self.assertEqual(apilib.CommonErrorCodes.DUPLICATE_VALUE, errors[0].code)
+        self.assertEqual(DUPLICATE_VALUE, errors[0].code)
         self.assertEqual('lfoo[1].id', errors[0].path)
-        self.assertEqual(apilib.CommonErrorCodes.DUPLICATE_VALUE, errors[1].code)
+        self.assertEqual(DUPLICATE_VALUE, errors[1].code)
         self.assertEqual('lfoo[3].id', errors[1].path)
 
         errors = self.validate(UniqueFields('id'), [{'id': None}, {'id': None}], apilib.ErrorContext().extend(field='lfoo'))
         self.assertEqual(1, len(errors))
-        self.assertEqual(apilib.CommonErrorCodes.DUPLICATE_VALUE, errors[0].code)
+        self.assertEqual(DUPLICATE_VALUE, errors[0].code)
         self.assertEqual('lfoo[1].id', errors[0].path)
 
         errors = self.validate(UniqueFields('foo'), [{'foo': 'a'}, {'foo': 'a'}], apilib.ErrorContext().extend(field='lfoo'))
         self.assertEqual(1, len(errors))
-        self.assertEqual(apilib.CommonErrorCodes.DUPLICATE_VALUE, errors[0].code)
+        self.assertEqual(DUPLICATE_VALUE, errors[0].code)
         self.assertEqual('lfoo[1].foo', errors[0].path)
 
         value = UniqueFields('id').validate([{'id': 1}, {'id': 1}],  apilib.ErrorContext(), None)
@@ -338,6 +345,67 @@ class ValidatorsTest(unittest.TestCase):
         self.assertEqual(1, len(errors))
         self.assertEqual('foo', errors[0].path)
         self.assertEqual('Value 11 is greater than 10', errors[0].msg)
+
+    def test_exactly_one_nonempty_validator(self):
+        ExactlyOneNonempty = apilib.ExactlyOneNonempty
+        REQUIRED = apilib.CommonErrorCodes.REQUIRED
+        AMBIGUOUS = apilib.CommonErrorCodes.AMBIGUOUS
+
+        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), 1, VC(parent={'foo': 1, 'bar': None}))
+        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), 'a', VC(parent={'foo': 'a', 'bar': None}))
+        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), None, VC(parent={'foo': 'a', 'bar': None}))
+        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), 1, VC(parent={'foo': 1}))
+        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), 'a', VC(parent={'foo': 'a'}))
+        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), None, VC(parent={'foo': 'a'}))
+        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), 1, VC(parent={'foo': None, 'bar': 1}))
+        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), 'a', VC(parent={'foo': None, 'bar': 'a'}))
+        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), None, VC(parent={'foo': None, 'bar': 'a'}))
+        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), 1, VC(parent={'bar': 1}))
+        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), 'a', VC(parent={'bar': 'a'}))
+        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), None, VC(parent={'bar': 'a'}))
+        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), 0, VC(parent={'bar': 0}))
+        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), [0], VC(parent={'bar': [0]}))
+
+        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), None, VC(parent={}), REQUIRED, REQUIRED)
+        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), None, VC(parent={'foo': None}), REQUIRED, REQUIRED)
+        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), None, VC(parent={'bar': None}), REQUIRED, REQUIRED)
+        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), None, VC(parent={'foo': None, 'bar': None}), REQUIRED, REQUIRED)
+        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), [], VC(parent={'foo': [], 'bar': []}), REQUIRED, REQUIRED)
+        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), {}, VC(parent={'foo': {}, 'bar': {}}), REQUIRED, REQUIRED)
+        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), '', VC(parent={'foo': '', 'bar': ''}), REQUIRED, REQUIRED)
+
+        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), 'a', VC(parent={'foo': 'a', 'bar': 'b'}), AMBIGUOUS, AMBIGUOUS)
+        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), 1, VC(parent={'foo': 1, 'bar': 1}), AMBIGUOUS, AMBIGUOUS)
+        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), 0, VC(parent={'foo': 0, 'bar': 0}), AMBIGUOUS, AMBIGUOUS)
+        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), [1], VC(parent={'foo': [1], 'bar': 'a'}), AMBIGUOUS, AMBIGUOUS)
+        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), 'a', VC(parent={'foo': [1], 'bar': 'a'}), AMBIGUOUS, AMBIGUOUS)
+
+        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar', 'baz'), 1, VC(parent={'foo': 1}))
+        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar', 'baz'), 1, VC(parent={'foo': 1, 'bar': None, 'baz': None}))
+        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar', 'baz'), None, VC(parent={}), REQUIRED, REQUIRED, REQUIRED)
+        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar', 'baz'), '', VC(parent={'foo': '', 'bar': '', 'baz': ''}), REQUIRED, REQUIRED, REQUIRED)
+        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar', 'baz'), 'a', VC(parent={'foo': 'a', 'bar': 'b'}), AMBIGUOUS, AMBIGUOUS, AMBIGUOUS)
+        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar', 'baz'), 'a', VC(parent={'foo': 'a', 'bar': 'b', 'baz': 'c'}), AMBIGUOUS, AMBIGUOUS, AMBIGUOUS)
+
+        self.assertIsNone(ExactlyOneNonempty('foo', 'bar').validate(None, EC(), VC(parent={})))
+
+        errors = self.validate(ExactlyOneNonempty('foo', 'bar'), None, EC().extend(field='parent'), VC(parent={}))
+        self.assertEqual(2, len(errors))
+        self.assertEqual(REQUIRED, errors[0].code)
+        self.assertEqual('parent.foo', errors[0].path)
+        self.assertEqual('Exactly one of foo, bar must be nonempty', errors[0].msg)
+        self.assertEqual(REQUIRED, errors[1].code)
+        self.assertEqual('parent.bar', errors[1].path)
+        self.assertEqual('Exactly one of foo, bar must be nonempty', errors[1].msg)
+
+        errors = self.validate(ExactlyOneNonempty('foo', 'bar'), None, EC().extend(field='parent'), VC(parent={'foo': 1, 'bar': 2}))
+        self.assertEqual(2, len(errors))
+        self.assertEqual(AMBIGUOUS, errors[0].code)
+        self.assertEqual('parent.foo', errors[0].path)
+        self.assertEqual('Exactly one of foo, bar must be nonempty', errors[0].msg)
+        self.assertEqual(AMBIGUOUS, errors[1].code)
+        self.assertEqual('parent.bar', errors[1].path)
+        self.assertEqual('Exactly one of foo, bar must be nonempty', errors[1].msg)
 
 
 if __name__ == '__main__':

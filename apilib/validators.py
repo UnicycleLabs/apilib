@@ -8,6 +8,8 @@ from .validation import Validator
 EMPTY_VALUES = (None, [], {}, '')
 
 class Required(Validator):
+    '''Usage: Required(), Required('mutate'), Required(['mutate/ADD', 'someservice.get'])'''
+
     def __init__(self, method_spec=True):
         self.method_matcher = MethodMatcher(method_spec)
 
@@ -28,6 +30,9 @@ class Required(Validator):
         return value
 
 class Readonly(Validator):
+    '''Usage: Readonly(), Readonly('mutate'), Readonly(['mutate/ADD', 'someservice.get'])
+    Does not return validation errors, but parses any field as None if it matches the method spec.
+    '''
     def __init__(self, method_spec=True):
         self.method_matcher = MethodMatcher(method_spec)
 
@@ -42,6 +47,15 @@ class Readonly(Validator):
         return value
 
 class NonemptyElements(Validator):
+    '''Usage: NonemptyElements()
+    [0, 1, 2] --> Valid
+    [{'id': 1}, {'id': 2}] --> Valid
+    [None] --> Invalid
+    ['foo', ''] --> Invalid
+    [[], ['a', 'b', 'c']] --> Invalid
+    [{}] --> Invalid
+    Only works for lists, but lists of any type.
+    '''
     documentation = 'Nonempty elements are required'
 
     def validate(self, value, error_context, context):
@@ -56,6 +70,12 @@ class NonemptyElements(Validator):
 
 # Only works for lists of scalars
 class Unique(Validator):
+    '''Usage: Unique()
+    [1, 2, 3] --> Valid
+    [1, 2, 1] --> Invalid
+    Only works for lists of scalars (or any hashable type).
+    '''
+
     documentation = 'Unique values are required'
 
     def validate(self, value, error_context, context):
@@ -70,11 +90,13 @@ class Unique(Validator):
             return None
         return value
 
-# Only works with lists of objects, e.g.
-# UniqueFields('id')
-# [{'id': 1}, {'id': 2}]
-# to ensure each object has a unique id.
 class UniqueFields(Validator):
+    '''Usage: UniqueFields('id')
+    [{'id': 1}, {'id': 2}] --> Valid
+    [{'id': 1}, {'id': 1}] --> Invalid
+    Works only on lists of objects.
+    '''
+
     def __init__(self, field_name):
         self.field_name = field_name
 
@@ -96,6 +118,8 @@ class UniqueFields(Validator):
         return value
 
 class Range(Validator):
+    '''Usage: Range(min_=1, max_=10)'''
+
     def __init__(self, min_=None, max_=None):
         if min_ is None and max_ is None:
             raise Exception('Must specify at least a min or max')
@@ -122,8 +146,15 @@ class Range(Validator):
         return value
 
 class ExactlyOneNonempty(Validator):
-    # field_names should include all fields that are dependent on each
-    # other including this one.
+    '''Usage: ExactlyOneNonempty('ids', 'user_ids')
+    {'ids': [1, 2, 3], 'user_ids': []} --> Valid
+    {'ids': None, 'user_ids': [3]} --> Valid
+    {'ids': [1], 'user_ids': [3]} --> Invalid
+    {'ids': None, 'user_ids': None} --> Invalid
+    When constructing, specify all field names including that of the field
+    this validator is being created for.
+    '''
+
     def __init__(self, *field_names):
         self.field_names = field_names
 
@@ -133,27 +164,16 @@ class ExactlyOneNonempty(Validator):
     def validate(self, value, error_context, context):
         num_nonempty_fields = 0
         for field_name in self.field_names:
-            if getattr(context.parent_model, field_name):
+            if context.parent.get(field_name) not in EMPTY_VALUES:
                 num_nonempty_fields += 1
         if num_nonempty_fields == 0:
-            error_context.add_error(CommonErrorCodes.REQUIRED,
-                'Exactly one of %s must be nonempty' % ', '.join(self.field_names))
-        elif num_nonempty_fields > 1:
-            error_context.add_error(CommonErrorCodes.AMBIGUOUS,
-                'Exactly one of %s must be nonempty' % ', '.join(self.field_names))
-        return value
-
-class DifferentThan(Validator):
-    def __init__(self, *field_names):
-        self.field_names = field_names
-
-    def get_documentation(self):
-        return 'Must not have the same value as %s' % ', '.join(self.field_names)
-
-    def validate(self, value, error_context, context):
-        if value:
             for field_name in self.field_names:
-                if value == getattr(context.parent_model, field_name):
-                    error_context.add_error(CommonErrorCodes.REPEATED,
-                        'Must not have the same value as %s' % ', '.join(self.field_names))
+                error_context.extend(field=field_name).add_error(CommonErrorCodes.REQUIRED,
+                    'Exactly one of %s must be nonempty' % ', '.join(self.field_names))
+            return None
+        elif num_nonempty_fields > 1:
+            for field_name in self.field_names:
+                error_context.extend(field=field_name).add_error(CommonErrorCodes.AMBIGUOUS,
+                    'Exactly one of %s must be nonempty' % ', '.join(self.field_names))
+            return None
         return value
