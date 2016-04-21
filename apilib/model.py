@@ -13,6 +13,7 @@ except ImportError:
 
 from .validation import CommonErrorCodes
 from .validation import ErrorContext
+from . import exceptions
 from . import validators as vals
 
 ID_ENCRYPTION_KEY = None  # Set this to encrypt ids
@@ -21,24 +22,8 @@ ID_HASHER = None
 def _create_id_hasher():
     global ID_HASHER
     if not ID_ENCRYPTION_KEY:
-        raise ConfigurationRequired('You must set apilib.ID_ENCRYPTION_KEY prior to using EncryptedId fields')
+        raise exceptions.ConfigurationRequired('You must set apilib.ID_ENCRYPTION_KEY prior to using EncryptedId fields')
     ID_HASHER = hashids.Hashids(salt=ID_ENCRYPTION_KEY, min_length=8)
-
-class UnknownFieldException(Exception):
-    pass
-
-class ModuleRequired(Exception):
-    pass
-
-class ConfigurationRequired(Exception):
-    pass
-
-class DeserializationError(Exception):
-    def __init__(self, errors):
-        self.errors = errors
-
-    def __str__(self):
-        return 'DeserializationError:\n  %s' % '\n  '.join(str(e) for e in self.errors)
 
 class Model(object):
     def __init__(self, **kwargs):
@@ -46,7 +31,7 @@ class Model(object):
         self._populate_fields()
         for key, value in kwargs.iteritems():
             if key not in self._field_name_to_field:
-                raise UnknownFieldException('Unknown field "%s"' % key)
+                raise exceptions.UnknownFieldException('Unknown field "%s"' % key)
             setattr(self, key, value)
 
     def to_json(self):
@@ -72,7 +57,7 @@ class Model(object):
                 error_context.extend(field=key).add_error(CommonErrorCodes.UNKNOWN_FIELD, 'Unknown field "%s"' % key)
         if error_context.has_errors():
             if is_root:
-                raise DeserializationError(error_context.all_errors())
+                raise exceptions.DeserializationError(error_context.all_errors())
             return None
         return cls(**kwargs)
 
@@ -440,7 +425,7 @@ class EncryptedId(FieldType):
 
     def __init__(self):
         if not hashids:
-            raise ModuleRequired('You must install the hashids module in order to use EncryptedId fields')
+            raise exceptions.ModuleRequired('You must install the hashids module in order to use EncryptedId fields')
         if not ID_HASHER:
             _create_id_hasher()
 
