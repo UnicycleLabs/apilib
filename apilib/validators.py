@@ -64,8 +64,8 @@ class NonemptyElements(Validator):
                 error_context.extend(index=i).add_error(
                     CommonErrorCodes.NONEMPTY_ITEM_REQUIRED,
                     'Nonempty list elements are required')
-            if error_context.has_errors():
-                return None
+        if error_context.has_errors():
+            return None
         return value
 
 # Only works for lists of scalars

@@ -1,11 +1,14 @@
 import datetime
 import unittest
 
+from dateutil import parser as dateutil_parser
 from dateutil import tz
 
 import apilib
 
 apilib.model.ID_ENCRYPTION_KEY = 'test'
+
+dateparse = dateutil_parser.parse
 
 class NotEvilValidator(apilib.Validator):
     def validate(self, value, error_context, context):
@@ -19,6 +22,12 @@ class SimpleValidationModel(apilib.Model):
 
 class SimpleChild(apilib.Model):
     fstring = apilib.Field(apilib.String())
+
+class SimpleRequiredChild(apilib.Model):
+    fstring = apilib.Field(apilib.String(), required=True)
+
+class SimpleRequiredParent(apilib.Model):
+    fchild = apilib.Field(apilib.ModelType(SimpleRequiredChild), required=True)
 
 class AllBasicTypesModel(apilib.Model):
     fstring = apilib.Field(apilib.String())
@@ -194,8 +203,8 @@ class ErrorFieldTestParent(apilib.Model):
     lchild = apilib.Field(apilib.ListType(ErrorFieldTestChild))
     dchild = apilib.Field(apilib.DictType(ErrorFieldTestChild))
 
-class ErrorFieldPathTest(unittest.TestCase, ExtraAssertionsMixin):
-    def test_error_field_paths(self):
+class NestedErrorFieldPathTest(unittest.TestCase, ExtraAssertionsMixin):
+    def test_nested_error_field_paths(self):
         ec = apilib.ErrorContext()
         m = ErrorFieldTestParent.from_json({
             'fchild': {'lstring': [None, None, -1], 'fint': 'invalid'},
@@ -665,6 +674,121 @@ class TestReadonlyModelFields(unittest.TestCase, ExtraAssertionsMixin):
         m, errors = self.run_test({'fchild': {'fstring': 'a'}, 'lchild': [{'fstring': 'b'}], 'dchild': {'foo': {'fstring': 'c'}}})
         self.assertEqual([], errors)
         self.assertAllNone(m)
+
+class TestParsedFieldsUsedForValidation(unittest.TestCase):
+    def run_test(self, model_type, obj, service=None, method=None, operator=None):
+        ec = apilib.ErrorContext()
+        vc = apilib.ValidationContext(service=service, method=method, operator=operator)
+        m = model_type.from_json(obj, ec, vc)
+        return m, ec.all_errors()
+
+    class DateRangeModel(apilib.Model):
+        fdatetime = apilib.Field(apilib.DateTime(), validators=[
+            apilib.Range(min_=dateparse('2016-01-01 12:30:00-07:00'), max_=dateparse('2016-03-05 14:30:00-07:00'))])
+        fdate = apilib.Field(apilib.Date(), validators=[
+            apilib.Range(min_=dateparse('2016-02-02').date(), max_=dateparse('2016-03-03').date())])
+
+    class UniqueDateModel(apilib.Model):
+        ldatetime = apilib.Field(apilib.ListType(apilib.DateTime()), validators=[apilib.Unique()])
+        ldate = apilib.Field(apilib.ListType(apilib.Date()), validators=[apilib.Unique()])
+
+    def test_valid(self):
+        m, errors = self.run_test(self.DateRangeModel, {'fdatetime': '2016-02-14T09:15:00-05:00', 'fdate': '2016-02-16'})
+        self.assertEqual(m.fdatetime, dateparse('2016-02-14T09:15:00-05:00'))
+        self.assertEqual(m.fdate, dateparse('2016-02-16').date())
+        self.assertEqual([], errors)
+
+        m, errors = self.run_test(self.UniqueDateModel, {'ldatetime': ['2016-02-14T09:15:00-05:00', '2016-02-14T09:15:00-04:00'], 'ldate': ['2016-02-16', '2016-02-17']})
+        self.assertEqual(m.ldatetime[0], dateparse('2016-02-14T09:15:00-05:00'))
+        self.assertEqual(m.ldatetime[1], dateparse('2016-02-14T09:15:00-04:00'))
+        self.assertEqual(m.ldate[0], dateparse('2016-02-16').date())
+        self.assertEqual(m.ldate[1], dateparse('2016-02-17').date())
+        self.assertEqual([], errors)
+
+    def test_invalid(self):
+        m, errors = self.run_test(self.DateRangeModel, {'fdatetime': '2015-02-14T09:15:00-05:00', 'fdate': '2015-02-16'})
+        self.assertIsNone(m)
+        self.assertEqual(apilib.CommonErrorCodes.VALUE_NOT_IN_RANGE, errors[0].code)
+        self.assertEqual('fdatetime', errors[0].path)
+        self.assertEqual(apilib.CommonErrorCodes.VALUE_NOT_IN_RANGE, errors[1].code)
+        self.assertEqual('fdate', errors[1].path)
+
+        m, errors = self.run_test(self.UniqueDateModel, {'ldatetime': ['2016-02-14T09:15:00-05:00', '2016-02-14T10:15:00-04:00'], 'ldate': ['2016-02-16', '2016-2-16']})
+        self.assertIsNone(m)
+        self.assertEqual(apilib.CommonErrorCodes.DUPLICATE_VALUE, errors[0].code)
+        self.assertEqual('ldatetime[1]', errors[0].path)
+        self.assertEqual(apilib.CommonErrorCodes.DUPLICATE_VALUE, errors[1].code)
+        self.assertEqual('ldate[1]', errors[1].path)
+
+
+class TestValidatorErrorFieldPaths(unittest.TestCase):
+    def run_test(self, model_type, obj, service=None, method=None, operator=None):
+        ec = apilib.ErrorContext()
+        vc = apilib.ValidationContext(service=service, method=method, operator=operator)
+        m = model_type.from_json(obj, ec, vc)
+        return m, ec.all_errors()
+
+    class NonemptyStringListModel(apilib.Model):
+        lstring = apilib.Field(apilib.ListType(apilib.String()), validators=[apilib.NonemptyElements()])
+
+    def test_nonempty_string_list(self):
+        m, errors = self.run_test(self.NonemptyStringListModel, {'lstring': [None, 'a', '']})
+        self.assertEqual(2, len(errors))
+        self.assertEqual(apilib.CommonErrorCodes.NONEMPTY_ITEM_REQUIRED, errors[0].code)
+        self.assertEqual('lstring[0]', errors[0].path)
+        self.assertEqual(apilib.CommonErrorCodes.NONEMPTY_ITEM_REQUIRED, errors[1].code)
+        self.assertEqual('lstring[2]', errors[1].path)
+
+    class NonemptyModelListModel(apilib.Model):
+        lmodel = apilib.Field(apilib.ListType(apilib.ModelType(SimpleChild)), validators=[apilib.NonemptyElements()])
+
+    def test_nonempty_model_list(self):
+        m, errors = self.run_test(self.NonemptyModelListModel, {'lmodel': [{'fstring': 'a'}, {}, None]})
+        self.assertEqual(1, len(errors))
+        self.assertEqual(apilib.CommonErrorCodes.NONEMPTY_ITEM_REQUIRED, errors[0].code)
+        self.assertEqual('lmodel[2]', errors[0].path)
+
+    class NonemptyModelWithRequiredFieldListModel(apilib.Model):
+        lmodel = apilib.Field(apilib.ListType(apilib.ModelType(SimpleRequiredChild)), validators=[apilib.NonemptyElements()])
+
+    def test_nonempty_model_with_required_field_list(self):
+        m, errors = self.run_test(self.NonemptyModelWithRequiredFieldListModel, {'lmodel': [{'fstring': 'a'}, {}, None]})
+        self.assertEqual(1, len(errors))
+        self.assertEqual(apilib.CommonErrorCodes.REQUIRED, errors[0].code)
+        self.assertEqual('lmodel[1].fstring', errors[0].path)
+
+        m, errors = self.run_test(self.NonemptyModelWithRequiredFieldListModel, {'lmodel': [{'fstring': 'a'}, None]})
+        self.assertEqual(1, len(errors))
+        self.assertEqual(apilib.CommonErrorCodes.NONEMPTY_ITEM_REQUIRED, errors[0].code)
+        self.assertEqual('lmodel[1]', errors[0].path)
+
+    class DeeplyNestedModel(apilib.Model):
+        field = apilib.Field(apilib.DictType(apilib.ListType(apilib.ListType(SimpleRequiredParent))))
+
+    def test_deeply_nested_model(self):
+        m, errors = self.run_test(self.DeeplyNestedModel, {'field': {'foo': [None, [None, None, {}]]}})
+        self.assertEqual(1, len(errors))
+        self.assertEqual(apilib.CommonErrorCodes.REQUIRED, errors[0].code)
+        self.assertEqual('field["foo"][1][2].fchild', errors[0].path)
+
+        m, errors = self.run_test(self.DeeplyNestedModel, {'field': {'foo': [None, [None, None, {'fchild': {}}]]}})
+        self.assertEqual(1, len(errors))
+        self.assertEqual(apilib.CommonErrorCodes.REQUIRED, errors[0].code)
+        self.assertEqual('field["foo"][1][2].fchild.fstring', errors[0].path)
+
+    class DictWithCustomErrorCodeModel(apilib.Model):
+        dchild = apilib.Field(apilib.DictType(apilib.ModelType(SimpleValidationModel)), required=True)
+
+    def test_custom_error_code_in_dict_field(self):
+        m, errors = self.run_test(self.DictWithCustomErrorCodeModel, {})
+        self.assertEqual(1, len(errors))
+        self.assertEqual(apilib.CommonErrorCodes.REQUIRED, errors[0].code)
+        self.assertEqual('dchild', errors[0].path)
+
+        m, errors = self.run_test(self.DictWithCustomErrorCodeModel, {'dchild': {'foo': {'fstring': 'evil'}}})
+        self.assertEqual(1, len(errors))
+        self.assertEqual('EVIL_VALUE', errors[0].code)
+        self.assertEqual('dchild["foo"].fstring', errors[0].path)
 
 
 if __name__ == '__main__':

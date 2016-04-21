@@ -116,12 +116,12 @@ class Field(object):
         return self._type.to_json(value)
 
     def from_json(self, value, error_context, context=None):
-        value = self._type.from_json(value, error_context, context)
+        parsed_value = self._type.from_json(value, error_context, context)
         if error_context.has_errors():
             return None
         if context:
-            return self._validate(value, error_context, context)
-        return value
+            return self._validate(parsed_value, error_context, context)
+        return parsed_value
 
     def __get__(self, instance, type=None):
         if instance:
