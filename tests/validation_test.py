@@ -692,6 +692,13 @@ class TestParsedFieldsUsedForValidation(unittest.TestCase):
         ldatetime = apilib.Field(apilib.ListType(apilib.DateTime()), validators=[apilib.Unique()])
         ldate = apilib.Field(apilib.ListType(apilib.Date()), validators=[apilib.Unique()])
 
+    class UniqueStringFieldsModel(apilib.Model):
+        lchild = apilib.Field(apilib.ListType(SimpleChild), validators=[apilib.UniqueFields('fstring')])
+
+    class ExactlyOneNonemptyModel(apilib.Model):
+        foo = apilib.Field(apilib.String(), validators=[apilib.ExactlyOneNonempty('foo', 'bar')])
+        bar = apilib.Field(apilib.String(), validators=[apilib.ExactlyOneNonempty('foo', 'bar')])
+
     def test_valid(self):
         m, errors = self.run_test(self.DateRangeModel, {'fdatetime': '2016-02-14T09:15:00-05:00', 'fdate': '2016-02-16'})
         self.assertEqual(m.fdatetime, dateparse('2016-02-14T09:15:00-05:00'))
@@ -705,9 +712,50 @@ class TestParsedFieldsUsedForValidation(unittest.TestCase):
         self.assertEqual(m.ldate[1], dateparse('2016-02-17').date())
         self.assertEqual([], errors)
 
+        m, errors = self.run_test(self.UniqueStringFieldsModel, {'lchild': [{'fstring': 'foo'}, {'fstring': 'bar'}]})
+        self.assertEqual('foo', m.lchild[0].fstring)
+        self.assertEqual('bar', m.lchild[1].fstring)
+        self.assertEqual([], errors)
+
+        m, errors = self.run_test(self.UniqueStringFieldsModel, {'lchild': [{'fstring': 'foo'}, {'fstring': 'bar'}, None]})
+        self.assertEqual('foo', m.lchild[0].fstring)
+        self.assertEqual('bar', m.lchild[1].fstring)
+        self.assertEqual([], errors)
+
+        m, errors = self.run_test(self.UniqueStringFieldsModel, {'lchild': [{'fstring': 'foo'}, {'fstring': 'bar'}, {}]})
+        self.assertEqual('foo', m.lchild[0].fstring)
+        self.assertEqual('bar', m.lchild[1].fstring)
+        self.assertEqual([], errors)
+
+        m, errors = self.run_test(self.UniqueStringFieldsModel, {'lchild': [{}, {}]})
+        self.assertIsNone(m.lchild[0].fstring)
+        self.assertIsNone(m.lchild[1].fstring)
+        self.assertEqual([], errors)
+
+        m, errors = self.run_test(self.ExactlyOneNonemptyModel, {'foo': 'a', 'bar': None})
+        self.assertEqual('a', m.foo)
+        self.assertIsNone(m.bar)
+        self.assertEqual([], errors)
+
+        m, errors = self.run_test(self.ExactlyOneNonemptyModel, {'foo': 'a'})
+        self.assertEqual('a', m.foo)
+        self.assertIsNone(m.bar)
+        self.assertEqual([], errors)
+
+        m, errors = self.run_test(self.ExactlyOneNonemptyModel, {'foo': None, 'bar': 'b'})
+        self.assertEqual('b', m.bar)
+        self.assertIsNone(m.foo)
+        self.assertEqual([], errors)
+
+        m, errors = self.run_test(self.ExactlyOneNonemptyModel, {'bar': 'b'})
+        self.assertEqual('b', m.bar)
+        self.assertIsNone(m.foo)
+        self.assertEqual([], errors)
+
     def test_invalid(self):
         m, errors = self.run_test(self.DateRangeModel, {'fdatetime': '2015-02-14T09:15:00-05:00', 'fdate': '2015-02-16'})
         self.assertIsNone(m)
+        self.assertEqual(2, len(errors))
         self.assertEqual(apilib.CommonErrorCodes.VALUE_NOT_IN_RANGE, errors[0].code)
         self.assertEqual('fdatetime', errors[0].path)
         self.assertEqual(apilib.CommonErrorCodes.VALUE_NOT_IN_RANGE, errors[1].code)
@@ -715,11 +763,41 @@ class TestParsedFieldsUsedForValidation(unittest.TestCase):
 
         m, errors = self.run_test(self.UniqueDateModel, {'ldatetime': ['2016-02-14T09:15:00-05:00', '2016-02-14T10:15:00-04:00'], 'ldate': ['2016-02-16', '2016-2-16']})
         self.assertIsNone(m)
+        self.assertEqual(2, len(errors))
         self.assertEqual(apilib.CommonErrorCodes.DUPLICATE_VALUE, errors[0].code)
         self.assertEqual('ldatetime[1]', errors[0].path)
         self.assertEqual(apilib.CommonErrorCodes.DUPLICATE_VALUE, errors[1].code)
         self.assertEqual('ldate[1]', errors[1].path)
 
+        m, errors = self.run_test(self.UniqueStringFieldsModel, {'lchild': [{'fstring': 'same'}, {'fstring': 'same'}]})
+        self.assertIsNone(m)
+        self.assertEqual(1, len(errors))
+        self.assertEqual(apilib.CommonErrorCodes.DUPLICATE_VALUE, errors[0].code)
+        self.assertEqual('lchild[1].fstring', errors[0].path)
+
+        m, errors = self.run_test(self.ExactlyOneNonemptyModel, {'foo': 'a', 'bar': 'b'})
+        self.assertIsNone(m)
+        self.assertEqual(2, len(errors))
+        self.assertEqual(apilib.CommonErrorCodes.AMBIGUOUS, errors[0].code)
+        self.assertEqual('foo', errors[0].path)
+        self.assertEqual(apilib.CommonErrorCodes.AMBIGUOUS, errors[1].code)
+        self.assertEqual('bar', errors[1].path)
+
+        m, errors = self.run_test(self.ExactlyOneNonemptyModel, {'foo': None, 'bar': None})
+        self.assertIsNone(m)
+        self.assertEqual(2, len(errors))
+        self.assertEqual(apilib.CommonErrorCodes.REQUIRED, errors[0].code)
+        self.assertEqual('foo', errors[0].path)
+        self.assertEqual(apilib.CommonErrorCodes.REQUIRED, errors[1].code)
+        self.assertEqual('bar', errors[1].path)
+
+        m, errors = self.run_test(self.ExactlyOneNonemptyModel, {})
+        self.assertIsNone(m)
+        self.assertEqual(2, len(errors))
+        self.assertEqual(apilib.CommonErrorCodes.REQUIRED, errors[0].code)
+        self.assertEqual('foo', errors[0].path)
+        self.assertEqual(apilib.CommonErrorCodes.REQUIRED, errors[1].code)
+        self.assertEqual('bar', errors[1].path)
 
 class TestValidatorErrorFieldPaths(unittest.TestCase):
     def run_test(self, model_type, obj, service=None, method=None, operator=None):

@@ -106,9 +106,9 @@ class UniqueFields(Validator):
     def validate(self, value, error_context, context):
         item_values_seen = set()
         for i, item in enumerate(value or []):
-            if item and self.field_name in item:
-                item_value = item[self.field_name]
-                if item_value in item_values_seen:
+            if item:
+                item_value = getattr(item, self.field_name, None)
+                if item_value is not None and item_value in item_values_seen:
                     error_context.extend(index=i).extend(field=self.field_name) \
                         .add_error(CommonErrorCodes.DUPLICATE_VALUE,
                             'Duplicate value found: "%s"' % item_value)
@@ -167,13 +167,11 @@ class ExactlyOneNonempty(Validator):
             if context.parent.get(field_name) not in EMPTY_VALUES:
                 num_nonempty_fields += 1
         if num_nonempty_fields == 0:
-            for field_name in self.field_names:
-                error_context.extend(field=field_name).add_error(CommonErrorCodes.REQUIRED,
-                    'Exactly one of %s must be nonempty' % ', '.join(self.field_names))
+            error_context.add_error(CommonErrorCodes.REQUIRED,
+                'Exactly one of %s must be nonempty' % ', '.join(self.field_names))
             return None
         elif num_nonempty_fields > 1:
-            for field_name in self.field_names:
-                error_context.extend(field=field_name).add_error(CommonErrorCodes.AMBIGUOUS,
-                    'Exactly one of %s must be nonempty' % ', '.join(self.field_names))
+            error_context.add_error(CommonErrorCodes.AMBIGUOUS,
+                'Exactly one of %s must be nonempty' % ', '.join(self.field_names))
             return None
         return value

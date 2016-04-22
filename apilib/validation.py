@@ -74,6 +74,8 @@ class ValidationContext(object):
         self.service = service
         self.method = method
         self.operator = operator
+        # Note that the parent is a dictionary and not a model object, since
+        # the parent cannot be parsed into a model until its field have been validated.
         self.parent = parent
 
     def for_parent(self, parent):

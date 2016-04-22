@@ -246,44 +246,45 @@ class ValidatorsTest(unittest.TestCase):
         value = Unique().validate([2, 1, 2], apilib.ErrorContext(), None)
         self.assertIsNone(value)
 
+    class UniqueFieldsModel(apilib.Model):
+        id = apilib.Field(apilib.Integer())
+        foo = apilib.Field(apilib.String())
+
     def test_unique_fields_validator(self):
         UniqueFields = apilib.UniqueFields
         DUPLICATE_VALUE = apilib.CommonErrorCodes.DUPLICATE_VALUE
+        M = self.UniqueFieldsModel
 
         self.run_validator_test_for_context(UniqueFields('id'), None, None)
         self.run_validator_test_for_context(UniqueFields('id'), [], None)
-        self.run_validator_test_for_context(UniqueFields('id'), [{}], None)
-        self.run_validator_test_for_context(UniqueFields('id'), [{}, {}], None)
-        self.run_validator_test_for_context(UniqueFields('id'), [{'id': None}], None)
-        self.run_validator_test_for_context(UniqueFields('id'), [{'id': None}, {}], None)
-        self.run_validator_test_for_context(UniqueFields('id'), [{'id': 1}, {}], None)
-        self.run_validator_test_for_context(UniqueFields('id'), [{'id': 1}, {'id': None}], None)
-        self.run_validator_test_for_context(UniqueFields('id'), [{'id': 1}, {'id': 2}], None)
-        self.run_validator_test_for_context(UniqueFields('id'), [{'id': 1}, {}, {'id': 3}], None)
+        self.run_validator_test_for_context(UniqueFields('id'), [M()], None)
+        self.run_validator_test_for_context(UniqueFields('id'), [M(), M()], None)
+        self.run_validator_test_for_context(UniqueFields('id'), [M(id=None)], None)
+        self.run_validator_test_for_context(UniqueFields('id'), [M(id=None), M()], None)
+        self.run_validator_test_for_context(UniqueFields('id'), [M(id=None), M(id=None)], None)
+        self.run_validator_test_for_context(UniqueFields('id'), [M(id=1), M()], None)
+        self.run_validator_test_for_context(UniqueFields('id'), [M(id=1), M(id=None)], None)
+        self.run_validator_test_for_context(UniqueFields('id'), [M(id=1), M(id=2)], None)
+        self.run_validator_test_for_context(UniqueFields('id'), [M(id=1), M(), M(id=3)], None)
 
-        errors = self.validate(UniqueFields('id'), [{'id': 1}, {'id': 1}], apilib.ErrorContext().extend(field='lfoo'))
+        errors = self.validate(UniqueFields('id'), [M(id=1), M(id=1)], apilib.ErrorContext().extend(field='lfoo'))
         self.assertEqual(1, len(errors))
         self.assertEqual(DUPLICATE_VALUE, errors[0].code)
         self.assertEqual('lfoo[1].id', errors[0].path)
 
-        errors = self.validate(UniqueFields('id'), [{'id': 1}, {'id': 1}, None, {'id': 1}], apilib.ErrorContext().extend(field='lfoo'))
+        errors = self.validate(UniqueFields('id'), [M(id=1), M(id=1), None, M(id=1)], apilib.ErrorContext().extend(field='lfoo'))
         self.assertEqual(2, len(errors))
         self.assertEqual(DUPLICATE_VALUE, errors[0].code)
         self.assertEqual('lfoo[1].id', errors[0].path)
         self.assertEqual(DUPLICATE_VALUE, errors[1].code)
         self.assertEqual('lfoo[3].id', errors[1].path)
 
-        errors = self.validate(UniqueFields('id'), [{'id': None}, {'id': None}], apilib.ErrorContext().extend(field='lfoo'))
-        self.assertEqual(1, len(errors))
-        self.assertEqual(DUPLICATE_VALUE, errors[0].code)
-        self.assertEqual('lfoo[1].id', errors[0].path)
-
-        errors = self.validate(UniqueFields('foo'), [{'foo': 'a'}, {'foo': 'a'}], apilib.ErrorContext().extend(field='lfoo'))
+        errors = self.validate(UniqueFields('foo'), [M(foo='a'), M(foo='a')], apilib.ErrorContext().extend(field='lfoo'))
         self.assertEqual(1, len(errors))
         self.assertEqual(DUPLICATE_VALUE, errors[0].code)
         self.assertEqual('lfoo[1].foo', errors[0].path)
 
-        value = UniqueFields('id').validate([{'id': 1}, {'id': 1}],  apilib.ErrorContext(), None)
+        value = UniqueFields('id').validate([M(id=1), M(id=1)],  apilib.ErrorContext(), None)
         self.assertIsNone(value)
 
     def test_range_validator(self):
@@ -366,46 +367,40 @@ class ValidatorsTest(unittest.TestCase):
         self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), 0, VC(parent={'bar': 0}))
         self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), [0], VC(parent={'bar': [0]}))
 
-        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), None, VC(parent={}), REQUIRED, REQUIRED)
-        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), None, VC(parent={'foo': None}), REQUIRED, REQUIRED)
-        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), None, VC(parent={'bar': None}), REQUIRED, REQUIRED)
-        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), None, VC(parent={'foo': None, 'bar': None}), REQUIRED, REQUIRED)
-        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), [], VC(parent={'foo': [], 'bar': []}), REQUIRED, REQUIRED)
-        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), {}, VC(parent={'foo': {}, 'bar': {}}), REQUIRED, REQUIRED)
-        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), '', VC(parent={'foo': '', 'bar': ''}), REQUIRED, REQUIRED)
+        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), None, VC(parent={}), REQUIRED)
+        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), None, VC(parent={'foo': None}), REQUIRED)
+        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), None, VC(parent={'bar': None}), REQUIRED)
+        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), None, VC(parent={'foo': None, 'bar': None}), REQUIRED)
+        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), [], VC(parent={'foo': [], 'bar': []}), REQUIRED)
+        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), {}, VC(parent={'foo': {}, 'bar': {}}), REQUIRED)
+        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), '', VC(parent={'foo': '', 'bar': ''}), REQUIRED)
 
-        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), 'a', VC(parent={'foo': 'a', 'bar': 'b'}), AMBIGUOUS, AMBIGUOUS)
-        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), 1, VC(parent={'foo': 1, 'bar': 1}), AMBIGUOUS, AMBIGUOUS)
-        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), 0, VC(parent={'foo': 0, 'bar': 0}), AMBIGUOUS, AMBIGUOUS)
-        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), [1], VC(parent={'foo': [1], 'bar': 'a'}), AMBIGUOUS, AMBIGUOUS)
-        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), 'a', VC(parent={'foo': [1], 'bar': 'a'}), AMBIGUOUS, AMBIGUOUS)
+        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), 'a', VC(parent={'foo': 'a', 'bar': 'b'}), AMBIGUOUS)
+        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), 1, VC(parent={'foo': 1, 'bar': 1}), AMBIGUOUS)
+        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), 0, VC(parent={'foo': 0, 'bar': 0}), AMBIGUOUS)
+        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), [1], VC(parent={'foo': [1], 'bar': 'a'}), AMBIGUOUS)
+        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar'), 'a', VC(parent={'foo': [1], 'bar': 'a'}), AMBIGUOUS)
 
         self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar', 'baz'), 1, VC(parent={'foo': 1}))
         self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar', 'baz'), 1, VC(parent={'foo': 1, 'bar': None, 'baz': None}))
-        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar', 'baz'), None, VC(parent={}), REQUIRED, REQUIRED, REQUIRED)
-        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar', 'baz'), '', VC(parent={'foo': '', 'bar': '', 'baz': ''}), REQUIRED, REQUIRED, REQUIRED)
-        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar', 'baz'), 'a', VC(parent={'foo': 'a', 'bar': 'b'}), AMBIGUOUS, AMBIGUOUS, AMBIGUOUS)
-        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar', 'baz'), 'a', VC(parent={'foo': 'a', 'bar': 'b', 'baz': 'c'}), AMBIGUOUS, AMBIGUOUS, AMBIGUOUS)
+        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar', 'baz'), None, VC(parent={}), REQUIRED)
+        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar', 'baz'), '', VC(parent={'foo': '', 'bar': '', 'baz': ''}), REQUIRED)
+        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar', 'baz'), 'a', VC(parent={'foo': 'a', 'bar': 'b'}), AMBIGUOUS)
+        self.run_validator_test_for_context(ExactlyOneNonempty('foo', 'bar', 'baz'), 'a', VC(parent={'foo': 'a', 'bar': 'b', 'baz': 'c'}), AMBIGUOUS)
 
         self.assertIsNone(ExactlyOneNonempty('foo', 'bar').validate(None, EC(), VC(parent={})))
 
-        errors = self.validate(ExactlyOneNonempty('foo', 'bar'), None, EC().extend(field='parent'), VC(parent={}))
-        self.assertEqual(2, len(errors))
+        errors = self.validate(ExactlyOneNonempty('foo', 'bar'), None, EC().extend(field='parent').extend(field='foo'), VC(parent={}))
+        self.assertEqual(1, len(errors))
         self.assertEqual(REQUIRED, errors[0].code)
         self.assertEqual('parent.foo', errors[0].path)
         self.assertEqual('Exactly one of foo, bar must be nonempty', errors[0].msg)
-        self.assertEqual(REQUIRED, errors[1].code)
-        self.assertEqual('parent.bar', errors[1].path)
-        self.assertEqual('Exactly one of foo, bar must be nonempty', errors[1].msg)
 
-        errors = self.validate(ExactlyOneNonempty('foo', 'bar'), None, EC().extend(field='parent'), VC(parent={'foo': 1, 'bar': 2}))
-        self.assertEqual(2, len(errors))
+        errors = self.validate(ExactlyOneNonempty('foo', 'bar'), None, EC().extend(field='parent').extend(field='foo'), VC(parent={'foo': 1, 'bar': 2}))
+        self.assertEqual(1, len(errors))
         self.assertEqual(AMBIGUOUS, errors[0].code)
         self.assertEqual('parent.foo', errors[0].path)
         self.assertEqual('Exactly one of foo, bar must be nonempty', errors[0].msg)
-        self.assertEqual(AMBIGUOUS, errors[1].code)
-        self.assertEqual('parent.bar', errors[1].path)
-        self.assertEqual('Exactly one of foo, bar must be nonempty', errors[1].msg)
 
 
 if __name__ == '__main__':
