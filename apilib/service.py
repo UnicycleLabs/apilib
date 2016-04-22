@@ -1,6 +1,8 @@
 import logging
 import traceback
 
+import requests
+
 from . import exceptions
 from . import model
 from . import validation
@@ -60,13 +62,23 @@ def servicemethods(*descriptors):
     return {d.name: d for d in descriptors}
 
 class Service(object):
+    '''Usage:
+    class FooService(apilib.Service):
+        methods = apilib.servicemethods(
+            apilib.Meth('foo', FooRequest, FooResponse))
+        path = '/foo_service'
+    '''
     # The methods offered by this service, a tuple of MethodDescriptor objects
     methods = servicemethods()
     # The path this service will be served from, e.g. '/widget_service'
     path = None
 
 class ServiceImplementation(Service):
-    logger = logging.getLogger('apilib')
+    '''Usage:
+    class FooServiceImpl(FooService, apilib.ServiceImplementation):
+        def foo(self, foo_request):
+            return FooResponse(...)
+    '''
 
     def invoke(self, method_name, request):
         self.log_request(method_name, request)
@@ -129,3 +141,25 @@ class ServiceImplementation(Service):
                 traceback.format_exc() or '')
         else:
             logger.debug('API service response:\n%s', response)
+
+class RemoteServiceStub(Service):
+    '''Usage:
+    class RemoteFooService(FooService, apilib.RemoteServiceStub):
+        pass
+
+    service = RemoteFooService('https://remoteserver.com')
+    foo_response = service.foo(FooRequest(...))
+    '''
+    def __init__(self, base_url):
+        self.base_url = base_url.rstrip('/')
+
+    def _invoke(self, method_descriptor, request):
+        url = '%s%s/%s' % (self.base_url, self.path.rstrip('/'), method_descriptor.name)
+        response = requests.post(url, data=request.to_json_str(), headers={'Content-Type': 'application/json'})
+        return method_descriptor.response_class.from_json(response.json())
+
+    def __getattr__(self, method_name):
+        descriptor = self.methods.get(method_name)
+        if not descriptor:
+            raise exceptions.MethodNotFoundException('No method named "%s" defined on this service' % method_name)
+        return lambda request: self._invoke(descriptor, request)
