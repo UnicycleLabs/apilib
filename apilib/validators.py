@@ -24,7 +24,7 @@ class Required(Validator):
                 if self.method_matcher.for_all_methods():
                     msg = 'Field is required'
                 else:
-                    msg = 'Field is required on method "%s"' % context.method
+                    msg = 'Field is required on method(s) "%s"' % ', '.join(self.method_matcher.methods())
                 error_context.add_error(CommonErrorCodes.REQUIRED, msg)
                 return None
         return value
@@ -39,7 +39,7 @@ class Readonly(Validator):
     def get_documentation(self):
         if not self.method_matcher.for_all_methods():
             return 'Value is read-only'
-        return 'Value is read-only for methods: %s' % ','.join(self.method_matcher.methods())
+        return 'Value is read-only for method(s): %s' % ', '.join(self.method_matcher.methods())
 
     def validate(self, value, error_context, context):
         if self.method_matcher.matches(context.service, context.method, context.operator):

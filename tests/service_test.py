@@ -100,6 +100,98 @@ class RemoteServiceTest(unittest.TestCase):
             service.unknown(FooRequest(request_str='blah'))
         self.assertEqual('No method named "unknown" defined on this service', context.exception.message)
 
+class Widget(apilib.Model):
+    id = apilib.Field(apilib.String(), required=['delete', 'mutate/UPDATE', 'NonwidgetService.get'])
+
+class WidgetOperation(apilib.Operation):
+    operand = apilib.Field(apilib.ModelType(Widget), required=True)
+
+class WidgetRequest(apilib.Request):
+    operations = apilib.Field(apilib.ListType(WidgetOperation))
+
+class WidgetResponse(apilib.Response):
+    pass
+
+class WidgetService(apilib.Service):
+    methods = apilib.servicemethods(
+        apilib.Meth('get', WidgetRequest, WidgetResponse),
+        apilib.Meth('mutate', WidgetRequest, WidgetResponse),
+        apilib.Meth('delete', WidgetRequest, WidgetResponse))
+
+class WidgetServiceImpl(WidgetService, apilib.ServiceImplementation):
+    def get(self, request):
+        return WidgetResponse()
+    def mutate(self, request):
+        return WidgetResponse()
+    def delete(self, request):
+        return WidgetResponse()
+
+class NonwidgetService(WidgetService):
+    pass
+
+class NonwidgetServiceImpl(NonwidgetService, apilib.ServiceImplementation):
+    def get(self, request):
+        return WidgetResponse()
+    def mutate(self, request):
+        return WidgetResponse()
+    def delete(self, request):
+        return WidgetResponse()
+
+class ServiceValidationTest(unittest.TestCase):
+    def test_field_required_only_on_specific_methods_and_services(self):
+        widget_service = WidgetServiceImpl()
+        no_id_add_request = {'operations': [{'operator': 'ADD', 'operand': {'id': None}}]}
+        with self.assertRaises(apilib.ApiException) as context:
+            widget_service.invoke_with_json('delete', no_id_add_request)
+        e = context.exception
+        self.assertEqual(1, len(e.errors))
+        self.assertEqual(apilib.CommonErrorCodes.REQUIRED, e.errors[0].code)
+        self.assertEqual('operations[0].operand.id', e.errors[0].path)
+        self.assertEqual('Field is required on method(s) "delete, mutate/UPDATE, NonwidgetService.get"', e.errors[0].message)
+
+        response = widget_service.invoke_with_json('mutate', no_id_add_request)
+        self.assertIsNotNone(response)
+        self.assertEqual('SUCCESS', response.get('response_code'))
+
+        no_id_set_request = {'operations': [{'operator': 'UPDATE', 'operand': {'id': None}}]}
+        with self.assertRaises(apilib.ApiException) as context:
+            widget_service.invoke_with_json('mutate', no_id_set_request)
+        e = context.exception
+        self.assertEqual(1, len(e.errors))
+        self.assertEqual(1, len(e.errors))
+        self.assertEqual(apilib.CommonErrorCodes.REQUIRED, e.errors[0].code)
+        self.assertEqual('operations[0].operand.id', e.errors[0].path)
+        self.assertEqual('Field is required on method(s) "delete, mutate/UPDATE, NonwidgetService.get"', e.errors[0].message)
+
+        response = widget_service.invoke_with_json('get', no_id_add_request)
+        self.assertIsNotNone(response)
+        self.assertEqual('SUCCESS', response.get('response_code'))
+
+        nonwidget_service = NonwidgetServiceImpl()
+        with self.assertRaises(apilib.ApiException) as context:
+            nonwidget_service.invoke_with_json('get', no_id_add_request)
+        e = context.exception
+        self.assertEqual(1, len(e.errors))
+        self.assertEqual(1, len(e.errors))
+        self.assertEqual(apilib.CommonErrorCodes.REQUIRED, e.errors[0].code)
+        self.assertEqual('operations[0].operand.id', e.errors[0].path)
+        self.assertEqual('Field is required on method(s) "delete, mutate/UPDATE, NonwidgetService.get"', e.errors[0].message)
+
+        id_add_request = {'operations': [{'operator': 'ADD', 'operand': {'id': 'foo'}}]}
+        response = widget_service.invoke_with_json('delete', id_add_request)
+        self.assertIsNotNone(response)
+        self.assertEqual('SUCCESS', response.get('response_code'))
+
+        id_set_request = {'operations': [{'operator': 'UPDATE', 'operand': {'id': 'foo'}}]}
+        response = widget_service.invoke_with_json('mutate', id_set_request)
+        self.assertIsNotNone(response)
+        self.assertEqual('SUCCESS', response.get('response_code'))
+
+        id_set_request = {'operations': [{'operator': 'UPDATE', 'operand': {'id': 'foo'}}]}
+        response = nonwidget_service.invoke_with_json('get', id_set_request)
+        self.assertIsNotNone(response)
+        self.assertEqual('SUCCESS', response.get('response_code'))
+
 
 if __name__ == '__main__':
     unittest.main()

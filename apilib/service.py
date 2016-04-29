@@ -1,3 +1,4 @@
+import inspect
 import logging
 import traceback
 
@@ -72,6 +73,22 @@ class Service(object):
     methods = servicemethods()
     # The path this service will be served from, e.g. '/widget_service'
     path = None
+    name = None
+
+    def get_name(self):
+        if self.name:
+            return self.name
+        if not hasattr(self, '_name'):
+            # Find the first parent class that inherits from Service.
+            # Any subclass could use multiple inheritance, so we don't
+            # want to select a parent class in a different class hierarchy.
+            # Also, one service could inherit from another service, so we want
+            # to use the highest Service-subclass in the hierarchy.
+            for type_ in inspect.getmro(type(self))[1:]:
+                if Service in inspect.getmro(type_):
+                    self._name = type_.__name__
+                    break
+        return self._name
 
 class ServiceImplementation(Service):
     '''Usage:
@@ -104,7 +121,7 @@ class ServiceImplementation(Service):
     def invoke_with_json(self, method_name, json_request):
         method_descriptor = self.resolve_method(method_name)
         error_context = validation.ErrorContext()
-        validation_context = validation.ValidationContext(service=self.__class__.__name__, method=method_name)
+        validation_context = validation.ValidationContext(service=self.get_name(), method=method_name)
         request = method_descriptor.request_class.from_json(json_request, error_context, validation_context)
         validation_errors = error_context.all_errors()
         if validation_errors:

@@ -49,7 +49,7 @@ class Model(object):
         kwargs = {}
         is_root = not error_context
         error_context = error_context or ErrorContext()
-        context = context.for_parent(obj) if context else None
+        context = cls.make_parent_context(obj, context) if context else None
         for key, field in cls._field_name_to_field.iteritems():
             kwargs[key] = field.from_json(obj.get(key), error_context.extend(field=key), context)
         for key in obj.iterkeys():
@@ -60,6 +60,10 @@ class Model(object):
                 raise exceptions.DeserializationError(error_context.all_errors())
             return None
         return cls(**kwargs)
+
+    @classmethod
+    def make_parent_context(cls, obj, context):
+        return context.for_parent(obj)
 
     @classmethod
     def from_json_str(cls, json_str):

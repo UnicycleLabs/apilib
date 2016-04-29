@@ -78,8 +78,8 @@ class ValidationContext(object):
         # the parent cannot be parsed into a model until its field have been validated.
         self.parent = parent
 
-    def for_parent(self, parent):
-        return ValidationContext(self.service, self.method, self.operator, parent)
+    def for_parent(self, parent, operator=None):
+        return ValidationContext(self.service, self.method, operator or self.operator, parent)
 
 class InvalidMethodSpec(Exception):
     '''Method specs have the form [service].[method]/[operator]. The service and operator are optional'''
