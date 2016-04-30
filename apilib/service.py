@@ -125,8 +125,11 @@ class ServiceImplementation(Service):
         request = method_descriptor.request_class.from_json(json_request, error_context, validation_context)
         validation_errors = error_context.all_errors()
         if validation_errors:
-            raise ApiException(errors=[ApiError(code=ve.code, path=ve.path, message=ve.msg) for ve in validation_errors])
-        response = self.invoke(method_name, request)
+            response = method_descriptor.response_class(
+                response_code=ResponseCode.REQUEST_ERROR,
+                errors=[ApiError(code=ve.code, path=ve.path, message=ve.msg) for ve in validation_errors])
+        else:
+            response = self.invoke(method_name, request)
         return response.to_json() if response else None
 
     def resolve_method(self, method_name):
