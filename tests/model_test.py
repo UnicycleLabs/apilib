@@ -520,6 +520,100 @@ class MultipleNestingTest(unittest.TestCase):
         self.assertEqual([9.0], m.lchild[0].lgrandchild[0].lfloat)
         self.assertEqual('def', m.lchild[0].fstring)
 
+class ModelWithBytes(apilib.Model):
+    fbytes = apilib.Field(apilib.Bytes())
+
+class ModelWithBytestTest(unittest.TestCase):
+    def test_empty(self):
+        m = ModelWithBytes()
+        self.assertIsNone(m.fbytes)
+
+        m = ModelWithBytes(fbytes=None)
+        self.assertIsNone(m.fbytes)
+
+        m = ModelWithBytes(fbytes='')
+        self.assertEqual('', m.fbytes)
+
+        m = ModelWithBytes(fbytes=u'')
+        self.assertEqual('', m.fbytes)
+
+        m = ModelWithBytes(fbytes=bytearray())
+        self.assertEqual('', m.fbytes)
+
+    def test_from_string(self):
+        b = 'hello'
+        m = ModelWithBytes(fbytes=b)
+        self.assertEqual(b, m.fbytes)
+
+    def test_from_bytes(self):
+        b = b'Champs-\xc9lys\xe9es'
+        m = ModelWithBytes(fbytes=b)
+        self.assertEqual(b, m.fbytes)
+
+    def test_from_bytearray(self):
+        b = bytearray(u'Champs-\xc9lys\xe9es', 'utf-8')
+        m = ModelWithBytes(fbytes=b)
+        self.assertEqual(b, m.fbytes)
+
+    def test_to_json(self):
+        m = ModelWithBytes(fbytes=b'')
+        self.assertDictEqual({'fbytes': ''}, m.to_json())
+
+        m = ModelWithBytes(fbytes='foo')
+        self.assertDictEqual({'fbytes': 'foo'}, m.to_json())
+
+        m = ModelWithBytes(fbytes=b'Champs-\xc9lys\xe9es')
+        self.assertDictEqual({'fbytes': 'Champs-\xc9lys\xe9es'}, m.to_json())
+
+        m = ModelWithBytes(fbytes=bytearray(u'Champs-\xc9lys\xe9es', 'utf-8'))
+        self.assertDictEqual({'fbytes': 'Champs-\xc3\x89lys\xc3\xa9es'}, m.to_json())
+
+    def test_from_json(self):
+        # TODO
+        pass
+
+    def test_to_string(self):
+        m = ModelWithBytes(fbytes='hello')
+        self.assertEqual("<ModelWithBytes: {\n  fbytes: 'hello',\n}>", str(m))
+
+        m = ModelWithBytes(fbytes='hello')
+        self.assertEqual("<ModelWithBytes: {\n  fbytes: 'hello',\n}>", unicode(m))
+
+        m = ModelWithBytes(fbytes=b'Champs-\xc9lys\xe9es')
+        self.assertEqual('<ModelWithBytes: {\n  fbytes: <...bytes...>,\n}>', str(m))
+
+        m = ModelWithBytes(fbytes=b'Champs-\xc9lys\xe9es')
+        self.assertEqual('<ModelWithBytes: {\n  fbytes: <...bytes...>,\n}>', unicode(m))
+
+class ModelWithEnum(apilib.Model):
+    class SomeValues(apilib.EnumValues):
+        FOO = 'foo'
+        BAR = u'bar'
+
+        NOT_A_STRING_VALUE = 1
+        _internal_value = 'internal'
+
+    fenum = apilib.Field(apilib.Enum(SomeValues.values()))
+
+class EnumValuesTest(unittest.TestCase):
+    def test_values_list(self):
+        self.assertEqual(['bar', 'foo'], ModelWithEnum.SomeValues.values())
+
+    def test_valid_model_values(self):
+        m = ModelWithEnum.from_json({'fenum': 'foo'})
+        self.assertEqual('foo', m.fenum)
+
+        m = ModelWithEnum.from_json({'fenum': 'bar'})
+        self.assertEqual('bar', m.fenum)
+
+
+        with self.assertRaises(apilib.DeserializationError) as e:
+            ModelWithEnum.from_json({'fenum': 'bowwow'})
+        self.assertEqual(1, len(e.exception.errors))
+        self.assertEqual(apilib.CommonErrorCodes.INVALID_VALUE, e.exception.errors[0].code)
+        self.assertEqual('fenum', e.exception.errors[0].path)
+        self.assertEqual('"bowwow" is not a valid enum for this type. Valid values are bar, foo', e.exception.errors[0].msg)
+
 class ToStringModel(apilib.Model):
     fstring = apilib.Field(apilib.String())
     fint = apilib.Field(apilib.Integer())
@@ -529,6 +623,7 @@ class ToStringModel(apilib.Model):
     fdatetime = apilib.Field(apilib.DateTime())
     fdecimal = apilib.Field(apilib.Decimal())
     fenum = apilib.Field(apilib.Enum(['JERRY', 'GEORGE']))
+    fbytes = apilib.Field(apilib.Bytes())
     fchild = apilib.Field(apilib.ModelType(BasicScalarModel))
     lchild = apilib.Field(apilib.ListType(BasicScalarModel))
     dchild = apilib.Field(apilib.DictType(BasicScalarModel))
@@ -544,6 +639,7 @@ class ToStringTest(unittest.TestCase):
             fdatetime=datetime.datetime(2012, 4, 12, 10, 8, 23, tzinfo=tz.tzutc()),
             fdecimal=decimal.Decimal('0.1'),
             fenum='JERRY',
+            fbytes='somebytes',
             fchild=BasicScalarModel(
                 fstring=None,
                 ffloat=None),
@@ -570,6 +666,7 @@ class ToStringTest(unittest.TestCase):
     bar: None,
     },
   fbool: False,
+  fbytes: 'somebytes',
   fchild: <BasicScalarModel: {
     ffloat: None,
     fstring: None,

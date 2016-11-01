@@ -175,3 +175,30 @@ class ExactlyOneNonempty(Validator):
                 'Exactly one of %s must be nonempty' % ', '.join(self.field_names))
             return None
         return value
+
+class AtMostOneNonempty(Validator):
+    '''Usage: AtMostOneNonempty('ids', 'user_ids')
+    {'ids': [1, 2, 3], 'user_ids': []} --> Valid
+    {'ids': None, 'user_ids': [3]} --> Valid
+    {'ids': [1], 'user_ids': [3]} --> Invalid
+    {'ids': None, 'user_ids': None} --> Valid
+    When constructing, specify all field names including that of the field
+    this validator is being created for.
+    '''
+
+    def __init__(self, *field_names):
+        self.field_names = field_names
+
+    def get_documentation(self):
+        return 'At most one of %s must be nonempty' % ', '.join(self.field_names)
+
+    def validate(self, value, error_context, context):
+        num_nonempty_fields = 0
+        for field_name in self.field_names:
+            if context.parent.get(field_name) not in EMPTY_VALUES:
+                num_nonempty_fields += 1
+        if num_nonempty_fields > 1:
+            error_context.add_error(CommonErrorCodes.AMBIGUOUS,
+                'At most one of %s must be nonempty' % ', '.join(self.field_names))
+            return None
+        return value

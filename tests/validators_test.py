@@ -402,6 +402,53 @@ class ValidatorsTest(unittest.TestCase):
         self.assertEqual('parent.foo', errors[0].path)
         self.assertEqual('Exactly one of foo, bar must be nonempty', errors[0].msg)
 
+    def test_at_most_one_nonempty_validator(self):
+        AtMostOneNonempty = apilib.AtMostOneNonempty
+        AMBIGUOUS = apilib.CommonErrorCodes.AMBIGUOUS
+
+        self.run_validator_test_for_context(AtMostOneNonempty('foo', 'bar'), 1, VC(parent={'foo': 1, 'bar': None}))
+        self.run_validator_test_for_context(AtMostOneNonempty('foo', 'bar'), 'a', VC(parent={'foo': 'a', 'bar': None}))
+        self.run_validator_test_for_context(AtMostOneNonempty('foo', 'bar'), None, VC(parent={'foo': 'a', 'bar': None}))
+        self.run_validator_test_for_context(AtMostOneNonempty('foo', 'bar'), 1, VC(parent={'foo': 1}))
+        self.run_validator_test_for_context(AtMostOneNonempty('foo', 'bar'), 'a', VC(parent={'foo': 'a'}))
+        self.run_validator_test_for_context(AtMostOneNonempty('foo', 'bar'), None, VC(parent={'foo': 'a'}))
+        self.run_validator_test_for_context(AtMostOneNonempty('foo', 'bar'), 1, VC(parent={'foo': None, 'bar': 1}))
+        self.run_validator_test_for_context(AtMostOneNonempty('foo', 'bar'), 'a', VC(parent={'foo': None, 'bar': 'a'}))
+        self.run_validator_test_for_context(AtMostOneNonempty('foo', 'bar'), None, VC(parent={'foo': None, 'bar': 'a'}))
+        self.run_validator_test_for_context(AtMostOneNonempty('foo', 'bar'), 1, VC(parent={'bar': 1}))
+        self.run_validator_test_for_context(AtMostOneNonempty('foo', 'bar'), 'a', VC(parent={'bar': 'a'}))
+        self.run_validator_test_for_context(AtMostOneNonempty('foo', 'bar'), None, VC(parent={'bar': 'a'}))
+        self.run_validator_test_for_context(AtMostOneNonempty('foo', 'bar'), 0, VC(parent={'bar': 0}))
+        self.run_validator_test_for_context(AtMostOneNonempty('foo', 'bar'), [0], VC(parent={'bar': [0]}))
+
+        self.run_validator_test_for_context(AtMostOneNonempty('foo', 'bar'), None, VC(parent={}))
+        self.run_validator_test_for_context(AtMostOneNonempty('foo', 'bar'), None, VC(parent={'foo': None}))
+        self.run_validator_test_for_context(AtMostOneNonempty('foo', 'bar'), None, VC(parent={'bar': None}))
+        self.run_validator_test_for_context(AtMostOneNonempty('foo', 'bar'), None, VC(parent={'foo': None, 'bar': None}))
+        self.run_validator_test_for_context(AtMostOneNonempty('foo', 'bar'), [], VC(parent={'foo': [], 'bar': []}))
+        self.run_validator_test_for_context(AtMostOneNonempty('foo', 'bar'), {}, VC(parent={'foo': {}, 'bar': {}}))
+        self.run_validator_test_for_context(AtMostOneNonempty('foo', 'bar'), '', VC(parent={'foo': '', 'bar': ''}))
+
+        self.run_validator_test_for_context(AtMostOneNonempty('foo', 'bar'), 'a', VC(parent={'foo': 'a', 'bar': 'b'}), AMBIGUOUS)
+        self.run_validator_test_for_context(AtMostOneNonempty('foo', 'bar'), 1, VC(parent={'foo': 1, 'bar': 1}), AMBIGUOUS)
+        self.run_validator_test_for_context(AtMostOneNonempty('foo', 'bar'), 0, VC(parent={'foo': 0, 'bar': 0}), AMBIGUOUS)
+        self.run_validator_test_for_context(AtMostOneNonempty('foo', 'bar'), [1], VC(parent={'foo': [1], 'bar': 'a'}), AMBIGUOUS)
+        self.run_validator_test_for_context(AtMostOneNonempty('foo', 'bar'), 'a', VC(parent={'foo': [1], 'bar': 'a'}), AMBIGUOUS)
+
+        self.run_validator_test_for_context(AtMostOneNonempty('foo', 'bar', 'baz'), 1, VC(parent={'foo': 1}))
+        self.run_validator_test_for_context(AtMostOneNonempty('foo', 'bar', 'baz'), 1, VC(parent={'foo': 1, 'bar': None, 'baz': None}))
+        self.run_validator_test_for_context(AtMostOneNonempty('foo', 'bar', 'baz'), None, VC(parent={}))
+        self.run_validator_test_for_context(AtMostOneNonempty('foo', 'bar', 'baz'), '', VC(parent={'foo': '', 'bar': '', 'baz': ''}))
+        self.run_validator_test_for_context(AtMostOneNonempty('foo', 'bar', 'baz'), 'a', VC(parent={'foo': 'a', 'bar': 'b'}), AMBIGUOUS)
+        self.run_validator_test_for_context(AtMostOneNonempty('foo', 'bar', 'baz'), 'a', VC(parent={'foo': 'a', 'bar': 'b', 'baz': 'c'}), AMBIGUOUS)
+
+        self.assertIsNone(AtMostOneNonempty('foo', 'bar').validate(None, EC(), VC(parent={})))
+
+        errors = self.validate(AtMostOneNonempty('foo', 'bar'), None, EC().extend(field='parent').extend(field='foo'), VC(parent={'foo': 1, 'bar': 2}))
+        self.assertEqual(1, len(errors))
+        self.assertEqual(AMBIGUOUS, errors[0].code)
+        self.assertEqual('parent.foo', errors[0].path)
+        self.assertEqual('At most one of foo, bar must be nonempty', errors[0].msg)
 
 if __name__ == '__main__':
     unittest.main()

@@ -3,6 +3,7 @@ import decimal
 import inspect
 import json
 import re
+import threading
 
 from dateutil import parser as dateutil_parser
 
@@ -24,6 +25,8 @@ def _create_id_hasher():
     if not ID_ENCRYPTION_KEY:
         raise exceptions.ConfigurationRequired('You must set apilib.ID_ENCRYPTION_KEY prior to using EncryptedId fields')
     ID_HASHER = hashids.Hashids(salt=ID_ENCRYPTION_KEY, min_length=8)
+
+_field_lock = threading.Lock()
 
 class Model(object):
     def __init__(self, **kwargs):
@@ -72,16 +75,22 @@ class Model(object):
     @classmethod
     def _populate_fields(cls):
         # Check cls.__dict__ instead of calling hasattr, because we only
-        # want to check if the variable exist on the class itself
+        # want to check if the variable exists on the class itself
         # and not any of its parent classes.
-        if '_field_to_attr_name' not in cls.__dict__:
-            cls._field_to_attr_name = {}
-            cls._field_name_to_field = {}
-            for attr_name, attr in inspect.getmembers(cls):
-                if attr and isinstance(attr, Field):
-                    cls._field_to_attr_name[attr] = attr_name
-                    cls._field_name_to_field[attr_name] = attr
-                    attr._name = attr_name
+        try:
+            # In a multi-threaded environment, different threads can try to build
+            # the field name dict at the same time and corrupt it.
+            _field_lock.acquire()
+            if '_field_to_attr_name' not in cls.__dict__:
+                cls._field_to_attr_name = {}
+                cls._field_name_to_field = {}
+                for attr_name, attr in inspect.getmembers(cls):
+                    if attr and isinstance(attr, Field):
+                        cls._field_to_attr_name[attr] = attr_name
+                        cls._field_name_to_field[attr_name] = attr
+                        attr._name = attr_name
+        finally:
+            _field_lock.release()
 
     def __str__(self):
         return self.to_string()
@@ -189,6 +198,28 @@ class String(FieldType):
 
     def to_string(self, value, indent):
         return (u"'%s'" % value.replace("'", "\\'")) if value is not None else unicode(None)
+
+class Bytes(FieldType):
+    type_name = 'bytes'
+    json_type = 'string'
+
+    def to_json(self, value):
+        return bytes(value) if value is not None else None
+
+    def from_json(self, value, error_context, context=None):
+        if _validate_types(value, (str, bytes, bytearray), error_context, self.type_name):
+            return bytes(value) if value is not None else None
+        return None
+
+    def to_string(self, value, indent):
+        if value is None:
+            return unicode(None)
+        try:
+            unicode_value = unicode(value)
+        except UnicodeDecodeError:
+            return u'<...bytes...>'
+        display_value = unicode_value if len(unicode_value) < 100 else unicode_value[:100] + '...'
+        return u"'%s'" % display_value.replace("'", "\\'")
 
 class Integer(FieldType):
     type_name = 'integer'
@@ -421,6 +452,29 @@ class Enum(FieldType):
 
     def to_string(self, value, indent):
         return unicode(value)
+
+class EnumValues(object):
+    '''A simple class that exposes a values() method that gets all string scalars defined at class level.
+
+    Usage:
+
+    class MyEnum(EnumValues):
+        FOO = 'foo'
+        BAR = 'bar'
+
+    class MyModel(Model):
+        enum_field = Field(Enum(MyEnum.values()))
+    '''
+
+    @classmethod
+    def values(cls):
+        if '_values' not in cls.__dict__:
+            values = []
+            for k, v in cls.__dict__.iteritems():
+                if not k.startswith('_') and isinstance(v, basestring):
+                    values.append(v)
+            cls._values = sorted(values)
+        return cls._values
 
 class EncryptedId(FieldType):
     type_name = 'id'
