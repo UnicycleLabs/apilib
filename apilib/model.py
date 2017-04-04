@@ -349,7 +349,7 @@ class DateTime(FieldType):
     json_type = 'string'
     description = 'A datetime with time zone in ISO 8601 format (YYYY-MM-DDTHH:MM:SS.mmmmmm+HH:MM)'
 
-    ISO_8601_RE = re.compile('\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,6})?((\+|-)\d{2}:\d{2})?$')
+    ISO_8601_RE = re.compile('\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,6})?((\+|-)\d{2}:\d{2}|Z)?$')
 
     def to_json(self, value):
         return unicode(value.isoformat()) if value is not None else None

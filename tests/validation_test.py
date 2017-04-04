@@ -199,6 +199,10 @@ class DateTimeValidationTest(unittest.TestCase, ExtraAssertionsMixin):
         self.assertFalse(ec.has_errors())
         self.assertEqual(datetime.datetime(2023, 12, 12, 15, 37, 37, 123000, tzinfo=None), m.fdatetime)
 
+        ec = apilib.ErrorContext()
+        m = self.Model.from_json(dict(fdatetime='2023-12-12T15:37:37.123Z'), ec)
+        self.assertFalse(ec.has_errors())
+        self.assertEqual(datetime.datetime(2023, 12, 12, 15, 37, 37, 123000, tzinfo=tz.tzutc()), m.fdatetime)
 
 class ErrorFieldTestChild(apilib.Model):
     lstring = apilib.Field(apilib.ListType(apilib.String()))
