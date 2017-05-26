@@ -11,6 +11,9 @@ class ModuleRequired(ApilibException):
 class ConfigurationRequired(ApilibException):
     pass
 
+class NotInitialized(ApilibException):
+    pass
+
 class DeserializationError(ApilibException):
     def __init__(self, errors):
         self.errors = errors

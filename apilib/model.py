@@ -73,6 +73,20 @@ class Model(object):
         return cls.from_json(json.loads(json_str))
 
     @classmethod
+    def init(cls):
+        cls._populate_fields()
+
+    @classmethod
+    def get_fields(cls):
+        cls.init()
+        return cls._field_name_to_field.values()
+
+    @classmethod
+    def get_field_names(cls):
+        cls.init()
+        return cls._field_name_to_field.keys()
+
+    @classmethod
     def _populate_fields(cls):
         # Check cls.__dict__ instead of calling hasattr, because we only
         # want to check if the variable exists on the class itself
@@ -132,6 +146,15 @@ class Field(object):
 
     def to_string(self, value, indent):
         return self._type.to_string(value, indent)
+
+    def get_type(self):
+        return self._type
+
+    def get_name(self):
+        if self._name is None:
+            raise exceptions.NotInitialized('The parent model of this field has not been initialized.'
+                ' You must either have instantiated a parent model or called init() in the parent model class')
+        return self._name
 
     def _validate(self, value, error_context, context=None):
         for validator in self._validators:
@@ -269,6 +292,9 @@ class ModelType(FieldType):
     def from_json(self, value, error_context, context=None):
         return self.model_class.from_json(value, error_context, context) if value is not None else None
 
+    def get_model_class(self):
+        return self.model_class
+
     def get_type_name(self):
         return 'object(%s)' % self.model_class.__name__
 
@@ -300,6 +326,9 @@ class ListType(FieldType):
 
     def get_type_name(self):
         return 'list(%s)' % self._type.get_type_name()
+
+    def get_item_type(self):
+        return self._type
 
     def to_string(self, value, indent):
         if value is None:
@@ -336,6 +365,9 @@ class DictType(FieldType):
 
     def get_type_name(self):
         return 'dict(%s)' % self._type.get_type_name()
+
+    def get_item_type(self):
+        return self._type
 
     def to_string(self, value, indent):
         if value is None:

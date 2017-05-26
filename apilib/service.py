@@ -74,6 +74,7 @@ class Service(object):
     # The path this service will be served from, e.g. '/widget_service'
     path = None
     name = None
+    public = None
 
     def get_name(self):
         if self.name:
