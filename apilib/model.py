@@ -156,6 +156,9 @@ class Field(object):
                 ' You must either have instantiated a parent model or called init() in the parent model class')
         return self._name
 
+    def get_validators(self):
+        return self._validators
+
     def _validate(self, value, error_context, context=None):
         for validator in self._validators:
             value = validator.validate(value, error_context, context)

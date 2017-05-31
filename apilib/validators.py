@@ -14,9 +14,9 @@ class Required(Validator):
         self.method_matcher = MethodMatcher(method_spec)
 
     def get_documentation(self):
-        if not self.method_matcher.for_all_methods():
+        if self.method_matcher.for_all_methods():
             return 'Value is required'
-        return 'Value is required for methods: %s' % ','.join(self.method_matcher.methods())
+        return 'Value is required for methods: %s' % ', '.join(self.method_matcher.methods())
 
     def validate(self, value, error_context, context):
         if value in EMPTY_VALUES:

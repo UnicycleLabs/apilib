@@ -844,5 +844,26 @@ class ArbitraryPrimitivesTest(unittest.TestCase):
         self.assertEqual(expected, str(m))
 
 
+class ModelWithValidators(apilib.Model):
+    fstring = apilib.Field(apilib.String(), required=True)
+    fint = apilib.Field(apilib.Integer(), required='mutate')
+    ffloat = apilib.Field(apilib.Float(), required=['get', 'mutate'])
+    fbool = apilib.Field(apilib.Boolean(), required=['mutate/UPDATE', 'mutate/DELETE'])
+
+class FieldDocumentationTest(unittest.TestCase):
+    def test_foo(self):
+        self.assertEqual(
+            'Value is required',
+            ModelWithValidators.fstring.get_validators()[0].get_documentation())
+        self.assertEqual(
+            'Value is required for methods: mutate',
+            ModelWithValidators.fint.get_validators()[0].get_documentation())
+        self.assertEqual(
+            'Value is required for methods: get, mutate',
+            ModelWithValidators.ffloat.get_validators()[0].get_documentation())
+        self.assertEqual(
+            'Value is required for methods: mutate/UPDATE, mutate/DELETE',
+            ModelWithValidators.fbool.get_validators()[0].get_documentation())
+
 if __name__ == '__main__':
     unittest.main()
