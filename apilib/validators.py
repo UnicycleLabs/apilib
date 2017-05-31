@@ -37,7 +37,7 @@ class Readonly(Validator):
         self.method_matcher = MethodMatcher(method_spec)
 
     def get_documentation(self):
-        if not self.method_matcher.for_all_methods():
+        if self.method_matcher.for_all_methods():
             return 'Value is read-only'
         return 'Value is read-only for method(s): %s' % ', '.join(self.method_matcher.methods())
 

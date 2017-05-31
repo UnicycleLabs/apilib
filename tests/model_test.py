@@ -849,6 +849,7 @@ class ModelWithValidators(apilib.Model):
     fint = apilib.Field(apilib.Integer(), required='mutate')
     ffloat = apilib.Field(apilib.Float(), required=['get', 'mutate'])
     fbool = apilib.Field(apilib.Boolean(), required=['mutate/UPDATE', 'mutate/DELETE'])
+    freadonly = apilib.Field(apilib.String(), readonly=True)
 
 class FieldDocumentationTest(unittest.TestCase):
     def test_foo(self):
@@ -864,6 +865,9 @@ class FieldDocumentationTest(unittest.TestCase):
         self.assertEqual(
             'Value is required for methods: mutate/UPDATE, mutate/DELETE',
             ModelWithValidators.fbool.get_validators()[0].get_documentation())
+        self.assertEqual(
+            'Value is read-only',
+            ModelWithValidators.freadonly.get_validators()[0].get_documentation())
 
 if __name__ == '__main__':
     unittest.main()
