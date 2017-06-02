@@ -49,40 +49,331 @@ of the field variable.
 Basic Usage
 -----------
 
-    import apilib
+```python
+import apilib
 
-    class Person(apilib.Model):
-        name = apilib.Field(apilib.String())
+class Person(apilib.Model):
+    name = apilib.Field(apilib.String())
 
-    p = Person(name='Bob')
-    p.name           # --> u'Bob'
-    p.to_json()      # --> {'name': u'Bob'}
-    p.to_json_str()  # --> '{"name": u"Bob"}'
+p = Person(name='Bob')
+p.name           # --> u'Bob'
+p.to_json()      # --> {'name': u'Bob'}
+p.to_json_str()  # --> '{"name": u"Bob"}'
 
-    p = Person.from_json({'name': u'Jim'})
-    p.name           # --> u'Jim'
+p = Person.from_json({'name': u'Jim'})
+p.name           # --> u'Jim'
+```
 
 Typed Fields
 ------------
 
-    import datetime
+```python
+import datetime
 
-    class Person(apilib.Model):
-        name =  apilib.Field(apilib.String())
-        birthday = apilib.Field(apilib.Date())
+class Person(apilib.Model):
+    name =  apilib.Field(apilib.String())
+    birthday = apilib.Field(apilib.Date())
 
-    p = Person(name='Jim', birthday=datetime.date(1977, 4, 3))
-    p.birthday   # --> datetime.date(1977, 4, 3)
-    p.to_json()  # --> {'birthday': u'1977-04-03', 'name': u'Jim'}
+p = Person(name='Jim', birthday=datetime.date(1977, 4, 3))
+p.birthday   # --> datetime.date(1977, 4, 3)
+p.to_json()  # --> {'birthday': u'1977-04-03', 'name': u'Jim'}
+```
 
 Complex Models
 --------------
 
-    class Student(apilib.Model):
-        name = apilib.Field(apilib.String())
+```python
+class Student(apilib.Model):
+    name = apilib.Field(apilib.String())
 
-    class School(apilib.Model):
-        students = apilib.Field(apilib.ListType(Student))
+class School(apilib.Model):
+    students = apilib.Field(apilib.ListType(Student))
 
-    s = School(students=[Student(name='Peter'), Student(name='Jane')])
-    s.to_json()  # --> {'students': [{'name': u'Peter'}, {'name': u'Jane'}]}
+s = School(students=[Student(name='Peter'), Student(name='Jane')])
+s.to_json()  # --> {'students': [{'name': u'Peter'}, {'name': u'Jane'}]}
+```
+
+## Full Reference
+
+### Field Types
+
+#### String
+
+Any string of unicode characters. Deserializes to the Python 'unicode' type.
+
+```python
+class Foo(apilib.Model):
+    name = apilib.Field(apilib.String())
+
+foo = Foo(name='This is a string')
+foo.to_json()  # --> {'name': 'This is a string'}
+```
+
+#### Integer
+
+An integer. Deserializes to the Python 'int' type Neither Python nor JSON meaningfully distinguish between short, long, or regular integers.
+
+```python
+class Foo(apilib.Model):
+    value = apilib.Field(apilib.Integer())
+
+foo = Foo(value=98)
+foo.to_json()  # --> {'value': 98}
+```
+
+#### Float
+
+A floating point number. Deserializes to the Python 'float' type.
+
+```python
+class Foo(apilib.Model):
+    value = apilib.Field(apilib.Float())
+
+foo = Foo(value=1.25)
+foo.to_json()  # --> {'value': 1.25}
+```
+
+#### Boolean
+
+A boolean.
+
+```python
+class Foo(apilib.Model):
+    is_correct = apilib.Field(apilib.Boolean())
+
+foo = Foo(is_correct=True)
+foo.to_json()  # --> {'value': True}
+foo.to_json_str()  # --> '{"is_correct": true}'
+
+foo = Foo(is_correct=False)
+foo.to_json()  # --> {'value': False}
+foo.to_json_str()  # --> '{"is_correct": false}'
+
+foo = Foo(is_correct=None)
+foo.to_json()  # --> {'value': None}
+foo.to_json_str()  # --> '{"is_correct": null}'
+```
+
+#### ModelType
+
+A field whose value is another model. The field value will serialize to a JSON object containing the fields of the nested object. Such a JSON object will deserialize into the corresponding Model object.
+
+`ModelType` takes a single argument, which must be a subclass of `apilib.Model`.
+
+```python
+class Foo(apilib.Model):
+    value = apilib.Field(apilib.String())
+
+class Bar(apilib.Model):
+    foo = apilib.Field(apilib.ModelType(Foo))
+
+bar = Bar(foo=Foo(value='hello'))
+bar.to_json()  # --> {'foo': {'value': u'hello'}}
+```
+
+#### ListType
+
+A field whose value is a list of other values. `ListType` takes a single argument, which must be either a subclass of `apilib.Model` if this is a list of other objects, or an instance of `FieldType` indicating the primitive type contained in this list.
+
+```python
+class Foo(apilib.Model):
+    list_value = apilib.Field(apilib.ListType(apilib.String()))
+
+foo = Foo(list_value=['foo', 'bar'])
+foo.to_json()  # --> {'list_value': [u'foo', u'bar']}
+
+class Bar(apilib.Model):
+    name = apilib.Field(apilib.String())
+
+class Baz(apilib.Model):
+    list_value = apilib.Field(apilib.ListType(Bar))
+
+baz = Baz(list_value=[Bar(name='Alice'), Bar(name='Bob')])
+baz.to_json()  # --> {'list_value': [{'name': u'Alice'}, {'name': u'Bob'}]}
+```
+
+Since the argument to `ListType` can be a `FieldType` instance, you can create nested lists and other complex field values.
+
+```python
+class Foo(apilib.Model):
+    complex_list = apilib.Field(apilib.ListType(apilib.ListType(apilib.String())))
+
+foo = Foo(complex_list=[['a'], ['b', 'c']])
+foo.to_json()  # --> {'complex_list': [[u'a'], [u'b', u'c']]}
+```
+
+#### DictType
+
+A field whose value is a dictionary with string keys and values of a specified type. `DictType` takes a single argument, which must be either a subclass of `apilib.Model` if this is a dict mapping to other objects, or an instance of `FieldType` indicating the primitive type of the dict's values.
+
+```python
+class Foo(apilib.Model):
+    dict_value = apilib.Field(apilib.DictType(apilib.String()))
+
+foo = Foo(dict_value={'somekey': 'somevalue'})
+foo.to_json()  # --> {'dict_value': {'somekey': u'somevalue'}}
+
+class Bar(apilib.Model):
+    name = apilib.Field(apilib.String())
+
+class Baz(apilib.Model):
+    dict_value = apilib.Field(apilib.DictType(Bar))
+
+baz = Baz(dict_value={'somekey': Bar(name='Alice')})
+baz.to_json()  # --> {'dict_value': {'somekey': {'name': u'Alice'}}}
+```
+
+Since the argument to `DictType` can be a `FieldType` instance, you can create nested dicts and other complex field values.
+
+```python
+class Foo(apilib.Model):
+    complex_dict = apilib.Field(apilib.DictType(apilib.ListType(apilib.String())))
+
+foo = Foo(complex_dict={'somekey': ['a', 'b']})
+foo.to_json()  # --> {'complex_dict': {'somekey': [u'a', u'b']}}
+```
+
+#### DateTime
+
+A field representing a date and time. In Python, this should be an instance of `datetime.datetime`. This will serialize to a string in ISO 8601 format (YYYY-MM-DDTHH:MM:SS.mmmmmm+HH:MM). The timezone portion (+HH:MM) is optional.
+
+```python
+import datetime
+from dateutil import tz
+
+class Foo(apilib.Model):
+    timestamp = apilib.Field(apilib.DateTime())
+
+timestamp = datetime.datetime(2017, 2, 14, 15, 30,
+    tzinfo=tz.gettz('America/Los_Angeles'))
+foo = Foo(timestamp=timestamp)
+foo.to_json()  # --> {'timestamp': u'2017-02-14T15:30:00-08:00'}
+
+foo = Foo.from_json({'timestamp': u'2017-02-14T15:30:00-08:00'})
+foo.timestamp  # --> datetime.datetime(2017, 2, 14, 15, 30, tzinfo=tzoffset(None, -28800))
+```
+
+#### Date
+
+A field representing a date. In Python, this should be an instance of `datetime.date`. This will serialize to a string in ISO 8601 format (YYYY-MM-DD).
+
+```python
+import datetime
+
+class Foo(apilib.Model):
+    date = apilib.Field(apilib.Date())
+
+date = datetime.date(2017, 2, 14)
+foo = Foo(date=date)
+foo.to_json()  # --> {'date': u'2017-02-14'}
+
+foo = Foo.from_json({'date': u'2017-02-14'})
+foo.date  # --> datetime.date(2017, 2, 14)
+```
+
+#### Decimal
+
+A field representing a numeric value with accurate decimal precision, e.g. to represent a currency amount. In Python, this should be an instance of decimal.Decimal. This will serialize to a string consisting of the decimal representation of the value, since JSON has no other way to faithfully represent an exact decimal value.
+
+```python
+import decimal
+
+class Foo(apilib.Model):
+    cost = apilib.Field(apilib.Decimal())
+
+foo = Foo(cost=decimal.Decimal('10.10'))
+foo.to_json()  # --> {'cost': u'10.10'}
+
+foo = Foo.from_json({'cost': u'10.10'})
+foo.cost  # --> Decimal('10.10')
+```
+
+#### Enum
+
+A field containing a fixed number of choices. This is equivalent to a `String` field but with validation during serialization the the given value is valid. `Enum` takes a single argument containing a list of valid values.
+
+```python
+class Foo(apilib.Model):
+    color = apilib.Field(apilib.Enum(['red', 'green', 'blue']))
+
+foo = Foo(color='blue')
+foo.to_json()  # --> {'color': u'blue'}
+
+foo = Foo.from_json({'color': u'blue'})
+foo.color  # --> 'blue'
+
+foo = Foo.from_json({'color': u'pink'})
+#  --> Raises DeserializationError
+```
+
+The `Enum` field type is typically used with the convenience class `EnumValues`, which defines a helper method `values()` that returns all string values defined on the class.
+
+```python
+class Color(apilib.EnumValues):
+    RED = 'red'
+    GREEN = 'green'
+    BLUE = 'blue';
+
+class Foo(apilib.Model):
+    color = apilib.Field(apilib.Enum(Color.values()))
+```
+
+#### Bytes
+
+Any string of characters. Deserializes to the Python 'bytes' type. Useful for blobs, typically the body of a file.
+
+```python
+class Foo(apilib.Model):
+    body = apilib.Field(apilib.Bytes())
+
+foo = Foo(body=open('somefile.xyz').read())
+foo.to_json()  # --> {'body': '<bytes>'}
+```
+
+#### EncryptedId
+
+An integer field that is obfuscated during serialization.
+
+Services implemented using SQL databases typically identify most object types using an autoincrement integer id. When using that database id to identify an object in a public API, you wind up leaking both the number of objects contained in your database (since a user can create a new object and see its id) as well as your rate of growth (since a user can create new objects X days apart and see how much higher the new id is). It is a good practice to obfuscate database ids when they are exposed publicly, either via an explicit API or even implicitly as part of JSON responses to a Javascript client in a web app or to a mobile application (mobile app requests can be inspected by any user by making use of a proxy).
+
+The EncryptedId field largely solves this problem for you without any extra effort. Such fields are always treated as integers in Python as they would if this were an Integer field. However, during serialization, the integer is obfuscated into a string using an encryption key.
+
+To use EncyptedId fields, you must install the `hashids` module (`pip install hashids`), and set an encryption key somewhere in your application's initialization code.
+
+```python
+apilib.model.ID_ENCRYPTION_KEY = '<some-key>'
+```
+
+An easy way to generate a random key is:
+
+```bash
+python -c "import base64; import os; print base64.b64encode(os.urandom(32))"
+```
+
+Usage:
+
+```python
+class Foo(apilib.Model):
+    object_id = apilib.Field(apilib.EncryptedId())
+
+foo = Foo(object_id=123)
+foo.to_json()  # --> {'object_id': '2ZeEQAem'}
+
+foo = Foo.from_json({'object_id': '2ZeEQAem'})
+foo.object_id  # --> 123
+```
+
+#### AnyPrimitive
+
+A field that may contain any JSON primitive (int, float, bool, string, list, dict). This field type generally only needs to be used when creating a list or dict field that can contain values of multiple types or unknown types, and is usually used only as the argument to `ListType` or `DictType`. It essentially just disables type-checking during serialization and deserialization.
+
+```python
+class Foo(apilib.Model):
+    list_field = apilib.Field(apilib.ListType(apilib.AnyPrimitive()))
+
+foo = Foo(list_field=[1, 'hello', True])
+foo.to_json()  # --> {'list_field': [1, 'hello', True]}
+
+foo = Foo.from_json({'list_field': [1, 'hello', True]})
+too.list_field  # --> [1, 'hello', True]
+```
