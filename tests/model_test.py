@@ -845,14 +845,20 @@ class ArbitraryPrimitivesTest(unittest.TestCase):
 
 
 class ModelWithValidators(apilib.Model):
-    fstring = apilib.Field(apilib.String(), required=True)
-    fint = apilib.Field(apilib.Integer(), required='mutate')
+    fstring = apilib.Field(apilib.String(), required=True, description='This is a custom description')
+    fint = apilib.Field(apilib.Integer(), required='mutate', custom_attr='This is a custom attr')
     ffloat = apilib.Field(apilib.Float(), required=['get', 'mutate'])
     fbool = apilib.Field(apilib.Boolean(), required=['mutate/UPDATE', 'mutate/DELETE'])
     freadonly = apilib.Field(apilib.String(), readonly=True)
 
 class FieldDocumentationTest(unittest.TestCase):
-    def test_foo(self):
+    def test_custom_description(self):
+        self.assertEqual('This is a custom description', ModelWithValidators.fstring.get_description())
+
+    def test_custom_attribute(self):
+        self.assertEqual('This is a custom attr', ModelWithValidators.fint.custom_attr)
+
+    def test_validator_documentation(self):
         self.assertEqual(
             'Value is required',
             ModelWithValidators.fstring.get_validators()[0].get_documentation())

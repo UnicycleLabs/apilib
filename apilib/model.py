@@ -118,11 +118,14 @@ class Model(object):
         return '\n'.join(parts)
 
 class Field(object):
-    def __init__(self, field_type, validators=(), required=None, readonly=None):
+    def __init__(self, field_type, validators=(), required=None, readonly=None, description=None, **kwargs):
         self._type = field_type
         # Will be populated when the model is instantiated
         self._name = None
         self._validators = self._implicit_validators(required, readonly) + list(validators or [])
+        self.description = description
+        for key, value in kwargs.iteritems():
+            setattr(self, key, value)
 
     def to_json(self, value):
         return self._type.to_json(value)
@@ -158,6 +161,9 @@ class Field(object):
 
     def get_validators(self):
         return self._validators
+
+    def get_description(self):
+        return self.description
 
     def _validate(self, value, error_context, context=None):
         for validator in self._validators:
