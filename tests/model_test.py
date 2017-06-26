@@ -875,5 +875,53 @@ class FieldDocumentationTest(unittest.TestCase):
             'Value is read-only',
             ModelWithValidators.freadonly.get_validators()[0].get_documentation())
 
+class HashAndEqualityTest(unittest.TestCase):
+    def test_equality(self):
+        m = NParent(
+            fchild=NChild(
+                fgrandchild=NGrandchild(fint=1, lfloat=[2.0, 3.0]),
+                lgrandchild=[NGrandchild(fint=4, lfloat=[5.0])],
+                fstring='abc'),
+            lchild=[NChild(
+                fgrandchild=NGrandchild(fint=6, lfloat=[7.0]),
+                lgrandchild=[NGrandchild(fint=8, lfloat=[9.0])],
+                fstring='def')])
+        self.assertEqual(m, m)
+
+        m2 = NParent(
+            fchild=NChild(
+                fgrandchild=NGrandchild(fint=1, lfloat=[2.0, 3.0]),
+                lgrandchild=[NGrandchild(fint=4, lfloat=[5.0])],
+                fstring='abc'),
+            lchild=[NChild(
+                fgrandchild=NGrandchild(fint=6, lfloat=[7.0]),
+                lgrandchild=[NGrandchild(fint=8, lfloat=[9.0])],
+                fstring='def')])
+        self.assertEqual(m, m2)
+
+    def test_equal_objects_equal_hashes(self):
+        m = NParent(
+            fchild=NChild(
+                fgrandchild=NGrandchild(fint=1, lfloat=[2.0, 3.0]),
+                lgrandchild=[NGrandchild(fint=4, lfloat=[5.0])],
+                fstring='abc'),
+            lchild=[NChild(
+                fgrandchild=NGrandchild(fint=6, lfloat=[7.0]),
+                lgrandchild=[NGrandchild(fint=8, lfloat=[9.0])],
+                fstring='def')])
+
+        m2 = NParent(
+            fchild=NChild(
+                fgrandchild=NGrandchild(fint=1, lfloat=[2.0, 3.0]),
+                lgrandchild=[NGrandchild(fint=4, lfloat=[5.0])],
+                fstring='abc'),
+            lchild=[NChild(
+                fgrandchild=NGrandchild(fint=6, lfloat=[7.0]),
+                lgrandchild=[NGrandchild(fint=8, lfloat=[9.0])],
+                fstring='def')])
+
+        self.assertIsNotNone(hash(m))
+        self.assertEqual(hash(m), hash(m2))
+
 if __name__ == '__main__':
     unittest.main()

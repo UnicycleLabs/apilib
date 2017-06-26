@@ -37,8 +37,12 @@ class Model(object):
                 raise exceptions.UnknownFieldException('Unknown field "%s"' % key)
             setattr(self, key, value)
 
-    def to_json(self):
+    def to_dict(self):
         return {key: self._field_name_to_field[key].to_json(value) for key, value in self._data.iteritems()}
+
+    # Deprecated. Use to_dict(), which is a better name.
+    def to_json(self):
+        return self.to_dict()
 
     def to_json_str(self):
         return json.dumps(self.to_json())
@@ -108,6 +112,15 @@ class Model(object):
 
     def __str__(self):
         return self.to_string()
+
+    def __eq__(self, other):
+        if other is None or not isinstance(other, Model):
+            return False
+        return self.to_dict() == other.to_dict()
+
+    def __hash__(self):
+        d = self.to_dict()
+        return hash(_dict_to_tuples(d))
 
     def to_string(self, indent=''):
         parts = ['<%s: {' % type(self).__name__]
@@ -558,3 +571,10 @@ class AnyPrimitive(FieldType):
 
     def to_string(self, value, indent):
         return unicode(value)
+
+def _dict_to_tuples(value):
+    if isinstance(value, dict):
+        return tuple((k, _dict_to_tuples(value[k])) for k in sorted(value))
+    elif isinstance(value, list):
+        return tuple(_dict_to_tuples(v) for v in value)
+    return value
