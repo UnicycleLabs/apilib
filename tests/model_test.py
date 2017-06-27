@@ -899,6 +899,11 @@ class HashAndEqualityTest(unittest.TestCase):
                 fstring='def')])
         self.assertEqual(m, m2)
 
+        self.assertEqual(NParent(), NParent())
+
+    def test_empty_objects_of_different_class_not_equal(self):
+        self.assertFalse(NParent() == BasicScalarModel())
+
     def test_equal_objects_equal_hashes(self):
         m = NParent(
             fchild=NChild(

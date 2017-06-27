@@ -114,9 +114,7 @@ class Model(object):
         return self.to_string()
 
     def __eq__(self, other):
-        if other is None or not isinstance(other, Model):
-            return False
-        return self.to_dict() == other.to_dict()
+        return type(self) == type(other) and self.to_dict() == other.to_dict()
 
     def __hash__(self):
         d = self.to_dict()
