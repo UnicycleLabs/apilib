@@ -123,7 +123,7 @@ class StudentServiceImpl(StudentService, apilib.ServiceImplementation):
         return GetStudentsResponse(students=api_students)
 ```
 
-That's a complete service implementation and you instantiate a `StudentServiceImpl` in code
+That's a complete service implementation and you can instantiate a `StudentServiceImpl` in code
 and call the `get()` method with a valid request object. In practice though, you will want
 to register the service as an HTTP endpoint so it can be called remotely. The details of
 that will depend on your HTTP server framework, but in general it should be easy to hook
@@ -151,14 +151,18 @@ This means that if you make a POST request to `/api/student_service/get` with pa
 that is the JSON representation of a `GetStudentsRequest` object, this route handler
 will invoke the `get` method of the service implementation, after deserializing the JSON
 object into an actual Python `GetStudentsRequest`. The `invoke_with_json` method will
-return dict primitive of the `GetStudentsResponse`, ready for serializing with `json.jsonify`.
-(When making a remote HTTP request to a Flask server, remember to set `Content-Type: application.json`
+return a dict primitive representation of the `GetStudentsResponse`, ready for serializing
+with `json.jsonify`.
+(When making a remote HTTP request to a server framework that is finicky about content types,
+like Flask, remember to set `Content-Type: application/json`
 in your HTTP request headers, so that Flask will properly populate `request.json`.)
 
 Put more simply, calling `StudentServiceImpl().get(<...>)` takes an `apilib.Request` object and
 returns an `apilib.Response` object. Calling `StudentServiceImpl().invoke_with_json('get', <...>)`
 takes a dictionary (JSON) primitive of the request object and returns a dictionary (JSON) primitive
-of the response object. `invoke_with_json` is a convenience for hooking into HTTP routes.
+of the response object. `invoke_with_json` is a convenience for hooking into HTTP routes that
+converts from dict primitive representations of objects and their Python `Request` and `Response`
+equivalents for you.
 
 ### Best Practices
 
