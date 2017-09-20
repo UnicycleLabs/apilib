@@ -46,8 +46,7 @@ are declared on the class, using descriptors, and a field's name
 both for attribute access and serialization is taken to be the name
 of the field variable.
 
-Basic Usage
------------
+## Basic Usage
 
 ```python
 import apilib
@@ -64,8 +63,7 @@ p = Person.from_json({'name': u'Jim'})
 p.name           # --> u'Jim'
 ```
 
-Typed Fields
-------------
+## Typed Fields
 
 ```python
 import datetime
@@ -79,8 +77,7 @@ p.birthday   # --> datetime.date(1977, 4, 3)
 p.to_json()  # --> {'birthday': u'1977-04-03', 'name': u'Jim'}
 ```
 
-Complex Models
---------------
+## Complex Models
 
 ```python
 class Student(apilib.Model):
@@ -91,6 +88,112 @@ class School(apilib.Model):
 
 s = School(students=[Student(name='Peter'), Student(name='Jane')])
 s.to_json()  # --> {'students': [{'name': u'Peter'}, {'name': u'Jane'}]}
+```
+
+## Services
+
+The real goal of apilib is to allow you to define API services that you then implement in Python.
+In practice `Models` exist as building blocks to create `Request` and `Response` objects that you
+use to define `Services`.
+
+This example defines an abstract API service with a single method and request and response
+objects for that method:
+
+```python
+class GetStudentsRequest(apilib.Request):
+    names = apilib.Field(apilib.ListType(apilib.String()))
+
+class GetStudentsResponse(apilib.Response):
+    students = apilib.Field(apilib.ListType(Student))
+
+class StudentService(apilib.Service):
+    methods = apilib.servicemethods(
+        apilib.MethodDescriptor('get', GetStudentsRequest, GetStudentsResponse))
+```
+
+You then need to implement the service. A sample implementation:
+
+```python
+class StudentServiceImpl(StudentService, apilib.ServiceImplementation):
+    def get(self, req):
+        # Query the database using something like sqlalchemy
+        db_students = DbStudent.query.filter(DbStudent.name.in_(req.names))
+        # Use a helper function that maps database objects to abstract API objects.
+        api_students = [db_student_to_api(db_student) for db_student in db_students]
+        return GetStudentsResponse(students=api_students)
+```
+
+That's a complete service implementation and you instantiate a `StudentServiceImpl` in code
+and call the `get()` method with a valid request object. In practice though, you will want
+to register the service as an HTTP endpoint so it can be called remotely. The details of
+that will depend on your HTTP server framework, but in general it should be easy to hook
+a service implementation into common Python HTTP servers, by making use of the
+`invoke_with_json()` method of the `ServiceImplementation` base class.
+
+Here's how you could expose an API service using Flask:
+
+```python
+from flask import Flask
+from flask import json
+from flask import request
+
+app = Flask(__name__)
+
+@app.route('/api/student_service/<method_name>', methods=['POST'])
+def student_service(method_name):
+    service = StudentServiceImpl()
+    response_dict = service.invoke_with_json(method_name, request.json)
+    return json.jsonify(response_dict)
+
+```
+
+This means that if you make a POST request to `/api/student_service/get` with payload
+that is the JSON representation of a `GetStudentsRequest` object, this route handler
+will invoke the `get` method of the service implementation, after deserializing the JSON
+object into an actual Python `GetStudentsRequest`. The `invoke_with_json` method will
+return dict primitive of the `GetStudentsResponse`, ready for serializing with `json.jsonify`.
+(When making a remote HTTP request to a Flask server, remember to set `Content-Type: application.json`
+in your HTTP request headers, so that Flask will properly populate `request.json`.)
+
+Put more simply, calling `StudentServiceImpl().get(<...>)` takes an `apilib.Request` object and
+returns an `apilib.Response` object. Calling `StudentServiceImpl().invoke_with_json('get', <...>)`
+takes a dictionary (JSON) primitive of the request object and returns a dictionary (JSON) primitive
+of the response object. `invoke_with_json` is a convenience for hooking into HTTP routes.
+
+### Best Practices
+
+It's most convenient to assign the root url path of a service with the service definition itself.
+This allows you to register HTTP endpoints for services more generically. In Flask, for example:
+
+```python
+class StudentService(apilib.Service):
+    path = '/api/student_service'
+    methods = apilib.servicemethods(...)
+
+class StudentServiceImpl(StudentService, apilib.ServiceImplementation):
+    # As before
+    ...
+
+#####
+
+from flask import Flask
+from flask import json
+from flask import request
+from flask_user import current_user
+
+app = Flask(__name__)
+
+def serviceroute(service_class):
+    return app.route(service_class.path + '/' + '<method_name>', methods=['POST'])
+
+def invoke_service(service_class, method_name, **service_kwargs):
+    service = service_class(**service_kwargs)
+    response = service.invoke_with_json(method_name, request.json)
+    return json.jsonify(response)
+
+@serviceroute(StudentServiceImpl)
+def student_service(method_name):
+    return invoke_service(StudentServiceImpl, method_name, current_user=current_user)
 ```
 
 ## Full Reference
