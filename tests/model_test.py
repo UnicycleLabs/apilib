@@ -1,8 +1,11 @@
+from __future__ import absolute_import
+
 import datetime
 import decimal
 import unittest
 
 from dateutil import tz
+import six
 
 import apilib
 
@@ -36,7 +39,7 @@ class EmptiesAndUnknownsTest(unittest.TestCase):
     def test_instantiate_unknown_field(self):
         with self.assertRaises(apilib.UnknownFieldException) as e:
             BasicScalarModel(fint=1, foo=2)
-        self.assertEqual('Unknown field "foo"', e.exception.message)
+        self.assertEqual('Unknown field "foo"', str(e.exception))
 
     def test_deserialize_unknown_field(self):
         with self.assertRaises(apilib.DeserializationError) as e:
@@ -538,7 +541,7 @@ class ModelWithBytestTest(unittest.TestCase):
         self.assertEqual('', m.fbytes)
 
         m = ModelWithBytes(fbytes=bytearray())
-        self.assertEqual('', m.fbytes)
+        self.assertEqual(b'', m.fbytes)
 
     def test_from_string(self):
         b = 'hello'
@@ -557,16 +560,16 @@ class ModelWithBytestTest(unittest.TestCase):
 
     def test_to_json(self):
         m = ModelWithBytes(fbytes=b'')
-        self.assertDictEqual({'fbytes': ''}, m.to_json())
+        self.assertDictEqual({'fbytes': bytes()}, m.to_json())
 
-        m = ModelWithBytes(fbytes='foo')
-        self.assertDictEqual({'fbytes': 'foo'}, m.to_json())
+        m = ModelWithBytes(fbytes=b'foo')
+        self.assertDictEqual({'fbytes': b'foo'}, m.to_json())
 
         m = ModelWithBytes(fbytes=b'Champs-\xc9lys\xe9es')
-        self.assertDictEqual({'fbytes': 'Champs-\xc9lys\xe9es'}, m.to_json())
+        self.assertDictEqual({'fbytes': b'Champs-\xc9lys\xe9es'}, m.to_json())
 
         m = ModelWithBytes(fbytes=bytearray(u'Champs-\xc9lys\xe9es', 'utf-8'))
-        self.assertDictEqual({'fbytes': 'Champs-\xc3\x89lys\xc3\xa9es'}, m.to_json())
+        self.assertDictEqual({'fbytes': b'Champs-\xc3\x89lys\xc3\xa9es'}, m.to_json())
 
     def test_from_json(self):
         # TODO
@@ -577,13 +580,13 @@ class ModelWithBytestTest(unittest.TestCase):
         self.assertEqual("<ModelWithBytes: {\n  fbytes: 'hello',\n}>", str(m))
 
         m = ModelWithBytes(fbytes='hello')
-        self.assertEqual("<ModelWithBytes: {\n  fbytes: 'hello',\n}>", unicode(m))
+        self.assertEqual("<ModelWithBytes: {\n  fbytes: 'hello',\n}>", six.text_type(m))
 
         m = ModelWithBytes(fbytes=b'Champs-\xc9lys\xe9es')
-        self.assertEqual('<ModelWithBytes: {\n  fbytes: <...bytes...>,\n}>', str(m))
-
-        m = ModelWithBytes(fbytes=b'Champs-\xc9lys\xe9es')
-        self.assertEqual('<ModelWithBytes: {\n  fbytes: <...bytes...>,\n}>', unicode(m))
+        if six.PY2:
+            self.assertEqual('<ModelWithBytes: {\n  fbytes: <...bytes...>,\n}>', str(m))
+        else:
+            self.assertEqual("<ModelWithBytes: {\n  fbytes: 'b\\'Champs-\\xc9lys\\xe9es\\'',\n}>", str(m))
 
 class ModelWithEnum(apilib.Model):
     class SomeValues(apilib.EnumValues):
@@ -593,11 +596,11 @@ class ModelWithEnum(apilib.Model):
         NOT_A_STRING_VALUE = 1
         _internal_value = 'internal'
 
-    fenum = apilib.Field(apilib.Enum(SomeValues.values()))
+    fenum = apilib.Field(apilib.Enum(list(SomeValues.values())))
 
 class EnumValuesTest(unittest.TestCase):
     def test_values_list(self):
-        self.assertEqual(['bar', 'foo'], ModelWithEnum.SomeValues.values())
+        self.assertEqual(['bar', 'foo'], list(ModelWithEnum.SomeValues.values()))
 
     def test_valid_model_values(self):
         m = ModelWithEnum.from_json({'fenum': 'foo'})

@@ -6,9 +6,9 @@ setup(
     author='Jonathan Goldman',
     author_email='jonathan@unicyclelabs.com',
     url='https://github.com/UnicycleLabs/apilib',
-    version='0.2.2',
+    version='0.3.0',
     packages=find_packages(),
-    install_requires=['python-dateutil', 'requests'],
+    install_requires=['six', 'python-dateutil', 'requests'],
     extras_require={'encrypted-ids': ['hashids']},
     tests_require=['mock'],
     test_suite='tests.all_tests')

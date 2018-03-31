@@ -2,6 +2,10 @@
 # to find the transitive closure of all objects used by a service,
 # for example when generating API documentation.
 
+from __future__ import absolute_import
+
+import six
+
 def get_model_classes_from_services(service_classes, public_only=False):
     model_classes = set()
     for service_class in service_classes:
@@ -12,7 +16,7 @@ def get_model_classes_from_services(service_classes, public_only=False):
 
 def get_model_classes_from_service(service_class, public_only=False):
     model_classes = set()
-    for descriptor in service_class.methods.itervalues():
+    for descriptor in six.itervalues(service_class.methods):
         if public_only and not descriptor.public:
             continue
         for model_class in [descriptor.request_class, descriptor.response_class]:

@@ -1,5 +1,7 @@
+from __future__ import absolute_import
+
+from io import StringIO
 import json
-import StringIO
 import unittest
 
 import mock
@@ -32,14 +34,14 @@ class BasicServiceTest(unittest.TestCase):
         with self.assertRaises(apilib.exceptions.MethodNotFoundException) as context:
             service.invoke_with_json('unknown', {})
         e = context.exception
-        self.assertEqual('No descriptor for method of name "unknown"', e.message)
+        self.assertEqual('No descriptor for method of name "unknown"', str(e))
 
     def test_unimplemented_method(self):
         service = FooServiceImpl()
         with self.assertRaises(apilib.exceptions.MethodNotImplementedException) as context:
             service.invoke_with_json('unimplemented', {})
         e = context.exception
-        self.assertEqual('Method "unimplemented" not implemented', e.message)
+        self.assertEqual('Method "unimplemented" not implemented', str(e))
 
     def test_validation(self):
         service = FooServiceImpl()
@@ -56,17 +58,20 @@ class BasicServiceTest(unittest.TestCase):
         self.assertIsNotNone(response)
         self.assertEqual({'response_str': u'Your request string was: blah', 'response_code': u'SUCCESS'}, response)
 
-def mock_requests_json_response(obj):
-        response = requests.Response()
-        response.raw = StringIO.StringIO(json.dumps(obj))
-        response.headers = requests.structures.CaseInsensitiveDict({'Content-Type': 'application/json'})
-        return response
+class MockJsonResponse(object):
+    def __init__(self, status_code, json_data, text=None):
+        self.status_code = status_code
+        self.json_data = json_data
+        self.text = text
+
+    def json(self):
+        return self.json_data
 
 class RemoteServiceTest(unittest.TestCase):
     @mock.patch('requests.post')
     def test_remote_request(self, mock_post):
         service = RemoteFooService('http://localhost:5000')
-        mock_post.return_value = mock_requests_json_response({'response_str': 'this is a response', 'response_code': 'SUCCESS'})
+        mock_post.return_value = MockJsonResponse(200, {'response_str': 'this is a response', 'response_code': 'SUCCESS'})
         foo_response = service.foo(FooRequest(request_str='blah'))
         self.assertIsNotNone(foo_response)
         self.assertEqual('SUCCESS', foo_response.response_code)
@@ -82,7 +87,7 @@ class RemoteServiceTest(unittest.TestCase):
         class AltRemoteFooService(RemoteFooService):
             path = '/foo_service/'
         service = AltRemoteFooService('http://localhost:5000/')
-        mock_post.return_value = mock_requests_json_response({'response_str': 'this is a response', 'response_code': 'SUCCESS'})
+        mock_post.return_value = MockJsonResponse(200, {'response_str': 'this is a response', 'response_code': 'SUCCESS'})
         foo_response = service.foo(FooRequest(request_str='blah'))
         self.assertIsNotNone(foo_response)
         self.assertEqual('SUCCESS', foo_response.response_code)
@@ -97,7 +102,7 @@ class RemoteServiceTest(unittest.TestCase):
         service = RemoteFooService('http://localhost:5000')
         with self.assertRaises(apilib.MethodNotFoundException) as context:
             service.unknown(FooRequest(request_str='blah'))
-        self.assertEqual('No method named "unknown" defined on this service', context.exception.message)
+        self.assertEqual('No method named "unknown" defined on this service', str(context.exception))
 
 class Widget(apilib.Model):
     id = apilib.Field(apilib.String(), required=['delete', 'mutate/UPDATE', 'NonwidgetService.get'])

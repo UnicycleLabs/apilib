@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import decimal
 
 from .validation import CommonErrorCodes

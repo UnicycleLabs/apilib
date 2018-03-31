@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+
 import datetime
 import unittest
 
@@ -690,7 +692,8 @@ class TestParsedFieldsUsedForValidation(unittest.TestCase):
         ec = apilib.ErrorContext()
         vc = apilib.ValidationContext(service=service, method=method, operator=operator)
         m = model_type.from_json(obj, ec, vc)
-        return m, ec.all_errors()
+        sorted_errors = sorted(ec.all_errors(), key=lambda e: (e.code, e.path))  # So as not to rely on iteration order
+        return m, sorted_errors
 
     class DateRangeModel(apilib.Model):
         fdatetime = apilib.Field(apilib.DateTime(), validators=[
@@ -767,17 +770,17 @@ class TestParsedFieldsUsedForValidation(unittest.TestCase):
         self.assertIsNone(m)
         self.assertEqual(2, len(errors))
         self.assertEqual(apilib.CommonErrorCodes.VALUE_NOT_IN_RANGE, errors[0].code)
-        self.assertEqual('fdatetime', errors[0].path)
+        self.assertEqual('fdate', errors[0].path)
         self.assertEqual(apilib.CommonErrorCodes.VALUE_NOT_IN_RANGE, errors[1].code)
-        self.assertEqual('fdate', errors[1].path)
+        self.assertEqual('fdatetime', errors[1].path)
 
         m, errors = self.run_test(self.UniqueDateModel, {'ldatetime': ['2016-02-14T09:15:00-05:00', '2016-02-14T10:15:00-04:00'], 'ldate': ['2016-02-16', '2016-2-16']})
         self.assertIsNone(m)
         self.assertEqual(2, len(errors))
         self.assertEqual(apilib.CommonErrorCodes.DUPLICATE_VALUE, errors[0].code)
-        self.assertEqual('ldatetime[1]', errors[0].path)
+        self.assertEqual('ldate[1]', errors[0].path)
         self.assertEqual(apilib.CommonErrorCodes.DUPLICATE_VALUE, errors[1].code)
-        self.assertEqual('ldate[1]', errors[1].path)
+        self.assertEqual('ldatetime[1]', errors[1].path)
 
         m, errors = self.run_test(self.UniqueStringFieldsModel, {'lchild': [{'fstring': 'same'}, {'fstring': 'same'}]})
         self.assertIsNone(m)
@@ -789,25 +792,25 @@ class TestParsedFieldsUsedForValidation(unittest.TestCase):
         self.assertIsNone(m)
         self.assertEqual(2, len(errors))
         self.assertEqual(apilib.CommonErrorCodes.AMBIGUOUS, errors[0].code)
-        self.assertEqual('foo', errors[0].path)
+        self.assertEqual('foo', errors[1].path)
         self.assertEqual(apilib.CommonErrorCodes.AMBIGUOUS, errors[1].code)
-        self.assertEqual('bar', errors[1].path)
+        self.assertEqual('bar', errors[0].path)
 
         m, errors = self.run_test(self.ExactlyOneNonemptyModel, {'foo': None, 'bar': None})
         self.assertIsNone(m)
         self.assertEqual(2, len(errors))
         self.assertEqual(apilib.CommonErrorCodes.REQUIRED, errors[0].code)
-        self.assertEqual('foo', errors[0].path)
+        self.assertEqual('bar', errors[0].path)
         self.assertEqual(apilib.CommonErrorCodes.REQUIRED, errors[1].code)
-        self.assertEqual('bar', errors[1].path)
+        self.assertEqual('foo', errors[1].path)
 
         m, errors = self.run_test(self.ExactlyOneNonemptyModel, {})
         self.assertIsNone(m)
         self.assertEqual(2, len(errors))
         self.assertEqual(apilib.CommonErrorCodes.REQUIRED, errors[0].code)
-        self.assertEqual('foo', errors[0].path)
+        self.assertEqual('bar', errors[0].path)
         self.assertEqual(apilib.CommonErrorCodes.REQUIRED, errors[1].code)
-        self.assertEqual('bar', errors[1].path)
+        self.assertEqual('foo', errors[1].path)
 
 class TestValidatorErrorFieldPaths(unittest.TestCase):
     def run_test(self, model_type, obj, service=None, method=None, operator=None):

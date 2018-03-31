@@ -1,5 +1,7 @@
+from __future__ import absolute_import
 import collections
 import re
+import six
 
 class Validator(object):
     documentation = ''
@@ -101,7 +103,7 @@ class MethodMatcher(object):
         else:
             self.all = False
             self.service_methods = []
-            self.method_names = [method_spec] if type(method_spec) in (str, unicode) else method_spec
+            self.method_names = [method_spec] if type(method_spec) in (str, six.text_type) else method_spec
             for method_name in self.method_names:
                 match = self.MATCHER_RE.match(method_name)
                 if not match:

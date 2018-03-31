@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+
 import unittest
 
 ALL_TESTS_SUITE = unittest.TestLoader().discover('.', pattern='*test*.py')

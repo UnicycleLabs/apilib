@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import datetime
 import decimal
 import inspect
@@ -6,6 +7,7 @@ import re
 import threading
 
 from dateutil import parser as dateutil_parser
+import six
 
 try:
     import hashids
@@ -32,13 +34,13 @@ class Model(object):
     def __init__(self, **kwargs):
         self._data = {}
         self._populate_fields()
-        for key, value in kwargs.iteritems():
+        for key, value in six.iteritems(kwargs):
             if key not in self._field_name_to_field:
                 raise exceptions.UnknownFieldException('Unknown field "%s"' % key)
             setattr(self, key, value)
 
     def to_dict(self):
-        return {key: self._field_name_to_field[key].to_json(value) for key, value in self._data.iteritems()}
+        return {key: self._field_name_to_field[key].to_json(value) for key, value in six.iteritems(self._data)}
 
     # Deprecated. Use to_dict(), which is a better name.
     def to_json(self):
@@ -57,9 +59,9 @@ class Model(object):
         is_root = not error_context
         error_context = error_context or ErrorContext()
         context = cls.make_parent_context(obj, context) if context else None
-        for key, field in cls._field_name_to_field.iteritems():
+        for key, field in six.iteritems(cls._field_name_to_field):
             kwargs[key] = field.from_json(obj.get(key), error_context.extend(field=key), context)
-        for key in obj.iterkeys():
+        for key in six.iterkeys(obj):
             if key not in cls._field_name_to_field:
                 error_context.extend(field=key).add_error(CommonErrorCodes.UNKNOWN_FIELD, 'Unknown field "%s"' % key)
         if error_context.has_errors():
@@ -83,12 +85,12 @@ class Model(object):
     @classmethod
     def get_fields(cls):
         cls.init()
-        return cls._field_name_to_field.values()
+        return list(cls._field_name_to_field.values())
 
     @classmethod
     def get_field_names(cls):
         cls.init()
-        return cls._field_name_to_field.keys()
+        return list(cls._field_name_to_field.keys())
 
     @classmethod
     def _populate_fields(cls):
@@ -122,7 +124,7 @@ class Model(object):
 
     def to_string(self, indent=''):
         parts = ['<%s: {' % type(self).__name__]
-        for key in sorted(self._data.iterkeys()):
+        for key in sorted(six.iterkeys(self._data)):
             formatted_value = self._field_name_to_field[key].to_string(self._data[key], indent)
             parts.append('  %s%s: %s,' % (indent, key, formatted_value))
         parts.append('%s}>' % indent)
@@ -135,7 +137,7 @@ class Field(object):
         self._name = None
         self._validators = self._implicit_validators(required, readonly) + list(validators or [])
         self.description = description
-        for key, value in kwargs.iteritems():
+        for key, value in six.iteritems(kwargs):
             setattr(self, key, value)
 
     def to_json(self, value):
@@ -217,7 +219,7 @@ class FieldType(object):
         return self.description
 
     def to_string(self, value, indent):
-        return unicode(value)
+        return six.text_type(value)
 
 def _validate_types(value, types, error_context, type_message):
     if value is not None and type(value) not in types:
@@ -232,15 +234,15 @@ class String(FieldType):
     json_type = 'string'
 
     def to_json(self, value):
-        return unicode(value) if value is not None else None
+        return six.text_type(value) if value is not None else None
 
     def from_json(self, value, error_context, context=None):
-        if _validate_types(value, (str, unicode), error_context, self.type_name):
-            return unicode(value) if value is not None else None
+        if _validate_types(value, (str, six.text_type), error_context, self.type_name):
+            return six.text_type(value) if value is not None else None
         return None
 
     def to_string(self, value, indent):
-        return (u"'%s'" % value.replace("'", "\\'")) if value is not None else unicode(None)
+        return (u"'%s'" % value.replace("'", "\\'")) if value is not None else six.text_type(None)
 
 class Bytes(FieldType):
     type_name = 'bytes'
@@ -256,9 +258,9 @@ class Bytes(FieldType):
 
     def to_string(self, value, indent):
         if value is None:
-            return unicode(None)
+            return six.text_type(None)
         try:
-            unicode_value = unicode(value)
+            unicode_value = six.text_type(value)
         except UnicodeDecodeError:
             return u'<...bytes...>'
         display_value = unicode_value if len(unicode_value) < 100 else unicode_value[:100] + '...'
@@ -272,7 +274,7 @@ class Integer(FieldType):
         return int(value) if value is not None else None
 
     def from_json(self, value, error_context, context=None):
-        if _validate_types(value, (int, long), error_context, self.type_name):
+        if _validate_types(value, six.integer_types, error_context, self.type_name):
             return int(value) if value is not None else None
         return None
 
@@ -284,7 +286,7 @@ class Float(FieldType):
         return float(value) if value is not None else None
 
     def from_json(self, value, error_context, context=None):
-        if _validate_types(value, (float, int, long), error_context, self.type_name):
+        if _validate_types(value, (float, int, int), error_context, self.type_name):
             return float(value) if value is not None else None
         return None
 
@@ -319,7 +321,7 @@ class ModelType(FieldType):
         return 'object(%s)' % self.model_class.__name__
 
     def to_string(self, value, indent):
-        return value.to_string(indent + '  ') if value is not None else unicode(None)
+        return value.to_string(indent + '  ') if value is not None else six.text_type(None)
 
 class ListType(FieldType):
     json_type = 'list'
@@ -352,7 +354,7 @@ class ListType(FieldType):
 
     def to_string(self, value, indent):
         if value is None:
-            return unicode(None)
+            return six.text_type(None)
         new_indent = indent + '    '
         parts = ['['] + ['%s%s,' % (new_indent, self._type.to_string(item, new_indent)) for item in value] + [new_indent + ']']
         return '\n'.join(parts)
@@ -369,7 +371,7 @@ class DictType(FieldType):
     def to_json(self, value):
         if value is None:
             return None
-        return {k: self._type.to_json(v) for k, v in value.iteritems()}
+        return {k: self._type.to_json(v) for k, v in six.iteritems(value)}
 
     def from_json(self, value, error_context, context=None):
         if value is None:
@@ -377,7 +379,7 @@ class DictType(FieldType):
         if not isinstance(value, dict):
             error_context.add_error(CommonErrorCodes.INVALID_TYPE, 'Value %s is not a dict' % value)
             return None
-        value = {k: self._type.from_json(v, error_context.extend(key=k), context) for k,v in value.iteritems()}
+        value = {k: self._type.from_json(v, error_context.extend(key=k), context) for k,v in six.iteritems(value)}
         return value if not error_context.has_errors() else None
 
     def normalize(self, value):
@@ -391,9 +393,9 @@ class DictType(FieldType):
 
     def to_string(self, value, indent):
         if value is None:
-            return unicode(None)
+            return six.text_type(None)
         new_indent = indent + '    '
-        parts = ['{'] + ['%s%s: %s,' % (new_indent, k, self._type.to_string(v, new_indent)) for k, v in value.iteritems()] + [new_indent + '}']
+        parts = ['{'] + ['%s%s: %s,' % (new_indent, k, self._type.to_string(v, new_indent)) for k, v in six.iteritems(value)] + [new_indent + '}']
         return '\n'.join(parts)
 
 class DateTime(FieldType):
@@ -404,18 +406,18 @@ class DateTime(FieldType):
     ISO_8601_RE = re.compile('\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,6})?((\+|-)\d{2}:\d{2}|Z)?$')
 
     def to_json(self, value):
-        return unicode(value.isoformat()) if value is not None else None
+        return six.text_type(value.isoformat()) if value is not None else None
 
     def from_json(self, value, error_context, context=None):
         if value is None:
             return None
-        if type(value) not in (str, unicode):
+        if type(value) not in (str, six.text_type):
             error_context.add_error(CommonErrorCodes.INVALID_TYPE,
                 'Value %s is invalid for datetime. Value must be a string in ISO 8601 format (YYYY-MM-DDTHH:MM:SS.mmmmmm+HH:MM)' % value)
             return None
         if self.ISO_8601_RE.match(value):
             try:
-                dt = dateutil_parser.parse(unicode(value))
+                dt = dateutil_parser.parse(six.text_type(value))
             except ValueError:
                 dt = None
         else:
@@ -433,12 +435,12 @@ class Date(FieldType):
     description = 'A date in ISO 8601 format (YYYY-MM-DD)'
 
     def to_json(self, value):
-        return unicode(value.isoformat()) if value is not None else None
+        return six.text_type(value.isoformat()) if value is not None else None
 
     def from_json(self, value, error_context, context=None):
         if value is None:
             return None
-        if type(value) not in (str, unicode):
+        if type(value) not in (str, six.text_type):
             error_context.add_error(CommonErrorCodes.INVALID_TYPE,
                 'Value %s is invalid for date. Value must be a string in ISO 8601 format (YYYY-MM-DD)' % value)
             return None
@@ -457,11 +459,11 @@ class Decimal(FieldType):
     description = 'A fixed-point decimal number'
 
     def to_json(self, value):
-        return unicode(value) if value is not None else None
+        return six.text_type(value) if value is not None else None
 
     def from_json(self, value, error_context, context=None):
         if value is not None:
-            if type(value) not in (str, unicode):
+            if type(value) not in (str, six.text_type):
                 error_context.add_error(
                     CommonErrorCodes.INVALID_TYPE,
                    'Decimal values must be passed as a string')
@@ -482,12 +484,12 @@ class Enum(FieldType):
         self.values = set(values)
 
     def to_json(self, value):
-        return unicode(value) if value is not None else None
+        return six.text_type(value) if value is not None else None
 
     def from_json(self, value, error_context, context=None):
         if value is None:
             return None
-        if type(value) not in (str, unicode):
+        if type(value) not in (str, six.text_type):
             error_context.add_error(
                 CommonErrorCodes.INVALID_TYPE,
                 'Value %s is invalid for enums. Enum values must be passed as strings' % value)
@@ -503,7 +505,7 @@ class Enum(FieldType):
         return 'enum(%s)' % ', '.join(sorted(self.values))
 
     def to_string(self, value, indent):
-        return unicode(value)
+        return six.text_type(value)
 
 class EnumValues(object):
     '''A simple class that exposes a values() method that gets all string scalars defined at class level.
@@ -522,8 +524,8 @@ class EnumValues(object):
     def values(cls):
         if '_values' not in cls.__dict__:
             values = []
-            for k, v in cls.__dict__.iteritems():
-                if not k.startswith('_') and isinstance(v, basestring):
+            for k, v in six.iteritems(cls.__dict__):
+                if not k.startswith('_') and isinstance(v, six.string_types):
                     values.append(v)
             cls._values = sorted(values)
         return cls._values
@@ -545,7 +547,7 @@ class EncryptedId(FieldType):
     def from_json(self, value, error_context, context=None):
         if value is None:
             return None
-        if type(value) not in (str, unicode):
+        if type(value) not in (str, six.text_type):
             error_context.add_error(CommonErrorCodes.INVALID_TYPE, 'Ids must be passed as strings')
             return None
         # Unclear why this doesn't work with unicode values,
@@ -568,7 +570,7 @@ class AnyPrimitive(FieldType):
         return value
 
     def to_string(self, value, indent):
-        return unicode(value)
+        return six.text_type(value)
 
 def _dict_to_tuples(value):
     if isinstance(value, dict):
