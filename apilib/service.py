@@ -60,6 +60,7 @@ class MethodDescriptor(object):
         self.public = public
 
 Meth = MethodDescriptor
+Method = MethodDescriptor
 
 def servicemethods(*descriptors):
     return {d.name: d for d in descriptors}
@@ -148,7 +149,7 @@ class ServiceImplementation(Service):
     def process_unhandled_exception(self, exception):
         # Do any processing, return True to re-raise the exception, otherwise the exception
         # will be logged and a server error response will be returned.
-        return False
+        return True
 
     def log_request(self, method_name, request):
         logger.debug('API service request: %s.%s\n%s',
